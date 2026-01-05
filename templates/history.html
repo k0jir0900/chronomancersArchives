@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="form-container">
+    <div class="page-header" style="text-align: center; margin-bottom: 30px;">
+        <!-- Search Form First -->
+        <form method="GET" action="/history" style="margin: 0 auto; display: flex; gap: 10px; margin-bottom: 20px;">
+            <div style="position: relative; flex-grow: 1;">
+                <input list="rule-list" name="rule_name" placeholder="Search rule..." class="search-input"
+                    value="{{ selected_rule if selected_rule else '' }}" autocomplete="off"
+                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
+                {% if selected_rule %}
+                <a href="/history"
+                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted-text); text-decoration: none;"><i
+                        class="fas fa-times"></i></a>
+                {% endif %}
+            </div>
+            <datalist id="rule-list">
+                {% for rule in rules %}
+                <option value="{{ rule }}">
+                    {% endfor %}
+            </datalist>
+            <button type="submit" class="btn-primary" style="white-space: nowrap;"><i class="fas fa-search"></i>
+                Search</button>
+            {% if selected_rule %}
+            <button type="button" class="btn-primary" onclick="exportToPDF()"
+                style="white-space: nowrap; background-color: #da3633; border-color: #da3633;"><i
+                    class="fas fa-file-pdf"></i> Export PDF</button>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script>
+                function exportToPDF() {
+                    const reportContainer = document.getElementById('report-container');
+                    const ruleName = "{{ selected_rule }}";
+
+                    const opt = {
+                        margin: 0.5,
+                        filename: `Report_Rule_${ruleName}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true },
+                        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+                        pagebreak: { mode: ['css', 'legacy'] }
+                    };
+
+                    reportContainer.style.display = 'block';
+
+                    html2pdf().from(reportContainer).set(opt).toPdf().get('pdf').then(function (pdf) {
+                        var totalPages = pdf.internal.getNumberOfPages();
+                        for (i = 1; i <= totalPages; i++) {
+                            pdf.setPage(i);
+                            pdf.setFontSize(10);
+                            pdf.setTextColor(100);
+                            // Page number bottom right
+                            pdf.text(`${i}`, pdf.internal.pageSize.getWidth() - 0.5, pdf.internal.pageSize.getHeight() - 0.5);
+                        }
+                    }).save().then(() => {
+                        reportContainer.style.display = 'none';
+                    });
+                }
+            </script>
+            {% endif %}
+        </form>
+
+        <!-- Title Second -->
+        {% if selected_rule %}
+        <h2 class="form-title" style="margin-bottom: 20px; font-size: 2rem; border-bottom: none;">{{ selected_rule }}
+        </h2>
+        {% else %}
+        <h2 class="form-title" style="margin-bottom: 20px; font-size: 2rem; border-bottom: none;">Rules History
+        </h2>
+        {% endif %}
+    </div>
+
+    <!-- PDF Report Template (Hidden) -->
+    {% if summary %}
+    <div id="report-container"
+        style="display: none; background-color: white; color: black; padding: 40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <!-- Header -->
+        <div style="border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px; font-weight: bold; text-transform: uppercase; color: #000;">{{
+                selected_rule }}</h1>
+        </div>
+
+        <!-- Summary List (Compact Box Style) -->
+        <div style="margin-bottom: 30px; font-size: 12px;">
+            <div
+                style="background-color: #eee; padding: 6px 10px; font-weight: bold; color: #000; text-transform: uppercase; letter-spacing: 0.5px;">
+                General Summary</div>
+            <div style="display: flex; flex-wrap: wrap;">
+                <!-- Row 1: Creator | Creation Time -->
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
+                    <span style="color: #000;">Creator:</span>
+                    <span style="font-weight: bold;">{{ summary.creator }}</span>
+                </div>
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
+                    <span style="color: #000;">Creation:</span>
+                    <span style="font-weight: bold;">{{ summary.first_created.strftime('%Y-%m-%d') }}</span>
+                </div>
+
+                <!-- Row 2: Last Mod Name | Last Mod Time -->
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
+                    <span style="color: #000;">Last Mod By:</span>
+                    <span style="font-weight: bold;">{{ summary.last_modifier }}</span>
+                </div>
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
+                    <span style="color: #000;">Last Mod:</span>
+                    <span style="font-weight: bold;">{{ summary.last_modified.strftime('%Y-%m-%d') }}</span>
+                </div>
+
+                <!-- Row 3: Status | Event Count -->
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #000;">Status:</span>
+                    <span
+                        style="background-color: {{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }}; color: white; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;">{{
+                        summary.current_status }}</span>
+                </div>
+                <div
+                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
+                    <span style="color: #000;">Count:</span>
+                    <span style="font-weight: bold;">{{ summary.total_events }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Details (Box Style) -->
+        <div>
+            <h3
+                style="margin: 0 0 20px 0; font-size: 16px; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; text-transform: uppercase;">
+                Event Details</h3>
+
+            {% for log in timeline %}
+            <div style="margin-bottom: 15px; border: 1px solid #ccc; page-break-inside: avoid;">
+                <!-- Header of Box -->
+                <div
+                    style="background-color: #f5f5f5; padding: 6px 10px; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: bold; color: #000;">{{ log.created_at.strftime('%Y-%m-%d') }}</span>
+                        <span style="color: #000;">|</span>
+                        <span style="color: #000;">Modified by: <strong>{{ log.modified_by or 'System'
+                                }}</strong></span>
+                        {% if log.ticket %}
+                        <span style="color: #000;">|</span>
+                        <span style="color: #000;">Ticket: <strong>{{ log.ticket }}</strong></span>
+                        {% endif %}
+                        <span style="color: #000;">|</span>
+                        <span style="color: #000;">Reason: <strong>{{ log.tuning_driver.replace('_', ' ').title()
+                                }}</strong></span>
+                    </div>
+                    <div>
+                        <span
+                            style="background-color: {% if log.action_type == 'creation' %}#238636{% elif log.action_type == 'modification' %}#d29922{% else %}#da3633{% endif %}; color: white; padding: 2px 6px; font-size: 10px; border-radius: 3px; font-weight: bold; text-transform: uppercase;">
+                            {% if log.action_type == 'creation' %}Creation
+                            {% elif log.action_type == 'modification' %}Modification
+                            {% elif log.action_type == 'elimination' %}Elimination
+                            {% else %}{{ log.action_type }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Content of Box -->
+                <div style="padding: 10px; display: flex; gap: 15px;">
+                    <!-- Details Column -->
+                    <div style="flex: 1; border-right: 1px solid #eee; padding-right: 15px;">
+                        <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">
+                            Detail</div>
+                        <div style="font-size: 12px; line-height: 1.3; color: #000;">{{ log.description }}</div>
+                    </div>
+
+                    <!-- Code Column -->
+                    <div
+                        style="flex: 1; background-color: #fdfdfd; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
+                        <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">Rule
+                        </div>
+                        <pre
+                            style="margin: 0; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #000;">{{ log.rule_content }}</pre>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected_rule %}
+    {% if summary %}
+    <!-- Rule Histogram (Stacked Bars) -->
+    {% if chart_data %}
+    <div class="chart-container" style="margin-bottom: 40px; position: relative; height: 300px; width: 100%;">
+        <canvas id="ruleHistogram"></canvas>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const isLight = document.body.classList.contains('light-theme');
+            const gridColor = isLight ? '#d0d7de' : '#30363d';
+            const textColor = isLight ? '#1f2328' : '#8b949e';
+
+            const ctx = document.getElementById('ruleHistogram').getContext('2d');
+            const chartData = {{ chart_data | tojson
+        }};
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    {
+                        label: 'Creation',
+                        data: chartData.created,
+                        backgroundColor: '#238636',
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Modification',
+                        data: chartData.modified,
+                        backgroundColor: '#d29922',
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Elimination',
+                        data: chartData.deleted,
+                        backgroundColor: '#da3633',
+                        borderRadius: 4,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: { color: gridColor, tickColor: gridColor },
+                        ticks: { color: textColor }
+                    },
+                    y: {
+                        stacked: true,
+                        grid: { color: gridColor, tickColor: gridColor },
+                        ticks: { color: textColor, precision: 0 },
+                        beginAtZero: true
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: textColor }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Histogram',
+                        color: textColor,
+                        font: { size: 14 }
+                    }
+                }
+            }
+        });
+             });
+    </script>
+    {% endif %}
+
+    <!-- Rule Summary Box Order: Total Events, Status, Created, Last Modified -->
+    <div class="rule-summary-grid">
+        <div class="summary-box">
+            <div class="summary-label">Total Events</div>
+            <div class="summary-value">{{ summary.total_events }}</div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-label">Current Status</div>
+            <div class="summary-value">
+                <span class="badge"
+                    style="background-color: {{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }}; color: white; border: none; font-size: 1rem;">
+                    {{ summary.current_status }}
+                </span>
+            </div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-label">Creation Date</div>
+            <div class="summary-value">{{ summary.first_created.strftime('%Y-%m-%d') }}</div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-label">Last Modification</div>
+            <div class="summary-value">{{ summary.last_modified.strftime('%Y-%m-%d') }}</div>
+        </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-container">
+        <h3
+            style="margin-bottom: 20px; color: var(--heading-color); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+            Historical Detail</h3>
+
+        {% for log in timeline %}
+        <div class="timeline-box"
+            style="border-left: 5px solid {% if log.action_type == 'creation' %}#238636{% elif log.action_type == 'modification' %}#d29922{% else %}#da3633{% endif %};">
+            <div class="timeline-header">
+                <span class="timeline-date"><i class="far fa-calendar-alt"></i> {{ log.created_at.strftime('%Y-%m-%d')
+                    }}</span>
+                <span class="timeline-modifier">
+                    <i class="fas fa-user-edit"></i> Modified by: <strong>{{ log.modified_by or 'System' }}</strong>
+                    {% if log.ticket %}
+                    <span style="margin-left: 10px; color: var(--muted-text);">| Ticket: <strong>{{ log.ticket
+                            }}</strong></span>
+                    {% endif %}
+                    <span style="margin-left: 10px; color: var(--muted-text);">| Reason: <strong>{{
+                            log.tuning_driver.replace('_', ' ').title() }}</strong></span>
+                </span>
+                <span class="badge badge-{{ log.action_type }}" style="margin-left: auto;">
+                    {% if log.action_type == 'creation' %}Creation
+                    {% elif log.action_type == 'modification' %}Modification
+                    {% elif log.action_type == 'elimination' %}Elimination
+                    {% else %}{{ log.action_type }}
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="timeline-content">
+                <div class="content-box">
+                    <h4><i class="fas fa-info-circle"></i> Detail</h4>
+                    <p>{{ log.description }}</p>
+                </div>
+                <div class="content-box code-box">
+                    <h4><i class="fas fa-code"></i> Rule</h4>
+                    <pre><code>{{ log.rule_content }}</code></pre>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; margin-top: 50px; color: #da3633;">
+        <i class="fas fa-exclamation-circle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+        <p style="font-size: 1.2rem;">No records found for rule: <strong>{{ selected_rule }}</strong>
+        </p>
+    </div>
+    {% endif %}
+    {% elif not selected_rule and rules %}
+    <div style="text-align: center; color: #8b949e; margin-top: 50px;">
+        <i class="fas fa-search" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;"></i>
+        <p>Select a rule to view its full history.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="form-container">
+    <div class="page-header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 class="form-title" style="margin-bottom: 0; border-bottom: none;">Gestión de Usuarios</h2>
+        <button id="toggleAddUser" class="btn-primary" onclick="toggleAddUserForm()">
+            <i class="fas fa-user-plus"></i> Nuevo Usuario
+        </button>
+    </div>
+
+    <!-- Add User Form -->
+    <div id="addUserSection"
+        style="display: none; margin-bottom: 30px; padding: 20px; background-color: var(--sidebar-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+        <h3
+            style="margin-top: 0; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px;">
+            Crear Nuevo Usuario</h3>
+        <form method="POST" action="/users/add">
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="username">Usuario</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="filter-group">
+                    <label for="full_name">Nombre Completo</label>
+                    <input type="text" id="full_name" name="full_name">
+                </div>
+                <div class="filter-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="filter-group">
+                    <label for="role">Rol</label>
+                    <select id="role" name="role" required>
+                        <option value="User">Usuario</option>
+                        <option value="Admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <label style="visibility: hidden;">Actions</label>
+                    <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Guardar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Users Table -->
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuario</th>
+                    <th>Nombre Completo</th>
+                    <th>Rol</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="user-icon" style="width: 30px; height: 30px; font-size: 0.9rem;">
+                                {% if user.profile_pic %}
+                                <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="User">
+                                {% else %}
+                                <span>{{ user.username[0].upper() }}</span>
+                                {% endif %}
+                            </div>
+                            {{ user.username }}
+                        </div>
+                    </td>
+                    <td>{{ user.full_name or '-' }}</td>
+                    <td>
+                        <span class="badge {{ 'badge-admin' if user.role == 'Admin' else 'badge-user' }}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- Edit Role Form -->
+                            <form action="/users/edit/{{ user.id }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="update_role">
+                                <select name="role" onchange="this.form.submit()"
+                                    style="padding: 5px; font-size: 0.8rem; width: auto; height: auto;">
+                                    <option value="User" {% if user.role=='User' %}selected{% endif %}>User</option>
+                                    <option value="Admin" {% if user.role=='Admin' %}selected{% endif %}>Admin</option>
+                                </select>
+                            </form>
+
+                            <!-- Reset Password Button (Toggle) -->
+                            <button type="button" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;"
+                                onclick="togglePasswordReset({{ user.id }})">
+                                <i class="fas fa-key"></i> Pass
+                            </button>
+
+                            <!-- Delete Button -->
+                            {% if current_user.id != user.id %}
+                            <form action="/users/delete/{{ user.id }}" method="POST" style="display: inline;"
+                                onsubmit="return confirm('¿Estás seguro de eliminar este usuario?');">
+                                <button type="submit" class="btn-danger"
+                                    style="padding: 5px 10px; font-size: 0.8rem; color: #ff7b72; border: 1px solid #da3633; border-radius: 6px; background: transparent; cursor: pointer;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+
+                        <!-- Hidden Password Reset Form -->
+                        <div id="reset-password-{{ user.id }}" style="display: none; margin-top: 10px;">
+                            <form action="/users/edit/{{ user.id }}" method="POST" style="display: flex; gap: 5px;">
+                                <input type="hidden" name="action" value="reset_password">
+                                <input type="password" name="password" placeholder="Nueva contraseña" required
+                                    style="padding: 5px; font-size: 0.8rem; height: auto;">
+                                <button type="submit" class="btn-primary"
+                                    style="padding: 5px 10px; font-size: 0.8rem;">OK</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function toggleAddUserForm() {
+        var section = document.getElementById('addUserSection');
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+        } else {
+            section.style.display = 'none';
+        }
+    }
+
+    function togglePasswordReset(userId) {
+        var section = document.getElementById('reset-password-' + userId);
+        if (section.style.display === 'none') {
+            section.style.display = 'block';
+        } else {
+            section.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

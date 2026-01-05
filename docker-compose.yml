@@ -1,0 +1,76 @@
+services:
+  certgen:
+    image: alpine:latest
+    working_dir: /certgen
+    environment:
+      DOMAIN: ${DOMAIN}
+      DAYS: ${DAYS}
+    volumes:
+      - ./certgen/certs:/certs
+      - ./certgen/certgen.sh:/tmp/certgen.sh
+    entrypoint: /bin/sh
+    command: >
+      -c "set -e;
+          apk add --no-cache openssl su-exec dos2unix >/dev/null;
+          adduser -S -D -H certgen;
+          chown -R certgen /certs;
+          cp /tmp/certgen.sh /certgen/certgen.run;
+          dos2unix -f /certgen/certgen.run;
+          chmod 755 /certgen/certgen.run;
+          exec su-exec certgen /certgen/certgen.run"
+
+  chronomancers_archives:
+    image: python:slim
+    restart: unless-stopped
+    depends_on:
+      certgen:
+        condition: service_completed_successfully
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: America/Santiago
+      PYTHONUNBUFFERED: "1"
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    init: true
+    command: >
+      sh -c "apt-get update > /dev/null 2>&1 &&  
+      apt-get install -y --no-install-recommends wget > /dev/null 2>&1 &&
+      rm -rf /var/lib/apt/lists/* &&
+      pip install --no-cache-dir -r /app/requirements.txt > /dev/null 2>&1 &&
+      gunicorn -w 2 -b 0.0.0.0:8000 --timeout 120 app:app"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health >/dev/null 2>&1 || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    depends_on:
+      chronomancers_archives:
+        condition: service_healthy
+    working_dir: /nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/nginx/nginx.conf:ro
+      - ./nginx/public:/nginx/public/:ro
+      - ./nginx/logs:/var/log/nginx
+      - ./certgen/certs:/nginx/certs
+    command: [ "nginx", "-c", "/nginx/nginx.conf", "-g", "daemon off;" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "nginx -t >/dev/null 2>&1 && [ -f /run/nginx.pid ] && kill -0 $(cat /run/nginx.pid)" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

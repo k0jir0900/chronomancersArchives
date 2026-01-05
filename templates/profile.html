@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="form-container">
+    <h2 class="form-title">Mi Perfil</h2>
+
+    <div class="profile-header">
+        <div class="profile-pic-large" style="cursor: pointer; position: relative;"
+            onclick="document.getElementById('profile_pic').click();">
+            {% if user.profile_pic %}
+            <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile Picture">
+            {% else %}
+            <span>{{ user.username[0].upper() }}</span>
+            {% endif %}
+            <div class="profile-avatar-overlay">
+                <i class="fas fa-camera"></i>
+                <span>Cambiar imagen</span>
+            </div>
+        </div>
+        <div class="profile-meta">
+            <h3>{{ user.full_name if user.full_name else user.username }}</h3>
+            <span class="badge badge-{{ user.role|lower }}">{{ user.role }}</span>
+            <div class="username-sub">@{{ user.username }}</div>
+        </div>
+    </div>
+
+    <!-- General Info Section -->
+    <form method="POST" action="/profile" enctype="multipart/form-data" class="profile-section">
+        <h3 class="section-title">Información General</h3>
+        <input type="hidden" name="action" value="update_info">
+
+        <div class="form-group">
+            <label for="username">Nombre de Usuario</label>
+            <input type="text" id="username" name="username" value="{{ user.username }}" readonly
+                class="input-readonly">
+            <small class="form-text text-muted">El nombre de usuario no puede ser modificado.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="full_name">Nombre Completo</label>
+            <input type="text" id="full_name" name="full_name" value="{{ user.full_name if user.full_name else '' }}"
+                placeholder="Ingrese su nombre y apellido">
+        </div>
+
+        <div class="form-group">
+            <!-- Hidden file input -->
+            <input type="file" id="profile_pic" name="profile_pic" accept="image/png,image/jpeg" style="display: none;"
+                onchange="validateAndShowImageName(this)">
+            <small class="form-text text-muted" id="selected-image-name"></small>
+        </div>
+
+        <script>
+            function validateAndShowImageName(input) {
+                const file = input.files[0];
+                const nameDisplay = document.getElementById('selected-image-name');
+
+                if (!file) {
+                    nameDisplay.textContent = '';
+                    return;
+                }
+
+                // Validate file type
+                const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+                if (!validTypes.includes(file.type)) {
+                    alert('Por favor selecciona una imagen en formato PNG o JPG.');
+                    input.value = '';
+                    nameDisplay.textContent = '';
+                    return;
+                }
+
+                // Validate file size (max 5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('La imagen no puede superar los 5MB.');
+                    input.value = '';
+                    nameDisplay.textContent = '';
+                    return;
+                }
+
+                nameDisplay.textContent = '📷 ' + file.name;
+            }
+        </script>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Actualizar Información</button>
+        </div>
+    </form>
+
+    <hr class="divider">
+
+    <!-- Appearance Section -->
+    <form method="POST" action="/profile" class="profile-section">
+        <h3 class="section-title">Apariencia</h3>
+        <input type="hidden" name="action" value="update_theme">
+
+        <div class="form-group" style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <label style="margin-bottom: 0;">Tema de la Interfaz</label>
+                <small class="text-muted" style="margin-top: 5px;">Alternar entre modo oscuro y claro.</small>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <i class="fas fa-moon" style="color: var(--text-color); opacity: 0.7;"></i>
+                <label class="switch">
+                    <input type="checkbox" onchange="toggleTheme(this)" {% if user.theme_preference=='light' %}checked{%
+                        endif %}>
+                    <span class="slider"></span>
+                </label>
+                <i class="fas fa-sun" style="color: var(--text-color); opacity: 0.7;"></i>
+            </div>
+        </div>
+        <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ user.theme_preference }}">
+
+        <script>
+            function toggleTheme(checkbox) {
+                const theme = checkbox.checked ? 'light' : 'dark';
+                document.getElementById('hiddenThemeInput').value = theme;
+                checkbox.closest('form').submit();
+            }
+        </script>
+    </form>
+
+    <hr class="divider">
+
+    <!-- Security Section -->
+    <form method="POST" action="/profile" class="profile-section">
+        <h3 class="section-title">Seguridad</h3>
+        <input type="hidden" name="action" value="change_password">
+
+        <div class="form-group">
+            <label for="current_password">Contraseña Actual</label>
+            <input type="password" id="current_password" name="current_password"
+                placeholder="Requerido para cambiar contraseña">
+        </div>
+
+        <div class="form-group">
+            <label for="new_password">Nueva Contraseña</label>
+            <input type="password" id="new_password" name="new_password" placeholder="Nueva contraseña">
+        </div>
+
+        <div class="form-group">
+            <label for="confirm_password">Confirmar Nueva Contraseña</label>
+            <input type="password" id="confirm_password" name="confirm_password" placeholder="Repetir nueva contraseña">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary btn-danger">Cambiar Contraseña</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

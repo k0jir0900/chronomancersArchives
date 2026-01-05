@@ -1,0 +1,14 @@
+# General
+.venv
+*.pyc
+__pycache__/
+
+# Ignore backup files
+backups
+
+# Nginx Logs
+nginx/logs/
+
+# Setup
+certgen/certs/
+

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ request.endpoint|capitalize if request.endpoint else 'Home' }} - Chronomancers Archives</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="{{ 'light-theme' if current_user and current_user.theme_preference == 'light' else '' }}">
+    <div class="container">
+        {% block sidebar %}
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+                <div class="repo-title" style="margin-bottom: 0; padding-bottom: 0; border: none;">
+                    Chronomancers Archives
+                </div>
+                <button id="sidebarToggle" class="btn-icon">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+
+            <nav class="menu" style="display: flex; flex-direction: column; height: 100%;">
+                {% if session.get('user_id') %}
+                <a href="/home" class="menu-item {{ 'active' if request.endpoint == 'home' else '' }}">
+                    <i class="fas fa-home"></i> <span>Home</span>
+                </a>
+                <a href="/register" class="menu-item {{ 'active' if request.endpoint == 'register' else '' }}">
+                    <i class="fas fa-pen-to-square"></i> <span>Registro de Bitácora</span>
+                </a>
+                <a href="/history" class="menu-item {{ 'active' if request.endpoint == 'history' else '' }}">
+                    <i class="fas fa-clock-rotate-left"></i> <span>Registro Histórico</span>
+                </a>
+
+                <!-- User Profile Section at Bottom of Sidebar -->
+                <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border-color);">
+                    <div class="user-menu user-profile-badge"
+                        style="width: 100%; display: flex; align-items: center; justify-content: flex-start; padding: 10px 15px;">
+                        <div class="user-icon" style="margin-right: 10px;">
+                            {% if current_user and current_user.profile_pic %}
+                            <img src="{{ url_for('static', filename='uploads/' + current_user.profile_pic) }}"
+                                alt="User">
+                            {% else %}
+                            <span>{{ session.get('username', 'U')[0].upper() }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="user-info-text" style="color: var(--text-color); font-size: 0.9rem;">
+                            {{ current_user.full_name if current_user.full_name else session.get('username') }}
+                        </div>
+
+                        <!-- Dropdown Content (Repositioned to open up or to the side) -->
+                        <div class="dropdown-content" style="bottom: 100%; top: auto; left: 10px; width: 200px;">
+                            <div class="dropdown-header">Hola, {{ current_user.full_name if current_user.full_name else
+                                session.get('username') }}</div>
+                            <a href="/profile">Mi Perfil</a>
+                            {% if current_user.role == 'Admin' %}
+                            <a href="/users">Gestión de Usuarios</a>
+                            <a href="/backup">Gestión de Respaldos</a>
+                            {% endif %}
+                            <a href="/logout" class="logout-item">Cerrar Sesión</a>
+                        </div>
+                    </div>
+                </div>
+
+                {% else %}
+                <a href="/login" class="menu-item {{ 'active' if request.endpoint == 'login' else '' }}">
+                    <i class="fas fa-right-to-bracket"></i> <span>Iniciar Sesión</span>
+                </a>
+                {% endif %}
+            </nav>
+        </aside>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const sidebar = document.getElementById('sidebar');
+                const toggleBtn = document.getElementById('sidebarToggle');
+
+                // Check localStorage
+                if (localStorage.getItem('sidebarCollapsed') === 'true') {
+                    sidebar.classList.add('collapsed');
+                }
+
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', () => {
+                        sidebar.classList.toggle('collapsed');
+                        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+                    });
+                }
+            });
+        </script>
+        {% endblock %}
+        <main class="content">
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+
+</html>

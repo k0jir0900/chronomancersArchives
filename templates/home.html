@@ -1,0 +1,410 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="form-container">
+    <div class="page-header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 class="form-title" style="margin-bottom: 0; border-bottom: none;">Dashboard</h2>
+        <button id="toggleFilters" class="btn-secondary" onclick="toggleFilters()">
+            <i class="fas fa-filter"></i> Show Filters
+        </button>
+    </div>
+
+    <!-- Filter Form -->
+    <div id="filterSection" style="display: none;">
+        <form method="GET" action="/home" class="filter-form">
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="start_date" style="font-size: 0.8rem; margin-bottom: 5px;">From</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ filters.start_date }}">
+                </div>
+                <div class="filter-group">
+                    <label for="end_date" style="font-size: 0.8rem; margin-bottom: 5px;">To</label>
+                    <input type="date" id="end_date" name="end_date" value="{{ filters.end_date }}">
+                </div>
+                <div class="filter-group filter-actions">
+                    <label style="visibility: hidden;">Actions</label>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="btn-primary"><i class="fas fa-search"></i> Filter</button>
+                        <a href="/home" class="btn-secondary"><i class="fas fa-broom"></i> Clear</a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: rgba(163, 113, 247, 0.2); color: #a371f7;">
+                <i class="fas fa-list-ol"></i>
+            </div>
+            <div class="stat-info">
+                <h4>Total Unique Rules</h4>
+                <p class="stat-number">{{ stats.unique_rules }}</p>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: rgba(56, 139, 253, 0.2); color: #58a6ff;">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="stat-info">
+                <h4>Total Actions</h4>
+                <p class="stat-number">{{ stats.total }}</p>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: rgba(35, 134, 54, 0.2); color: #3fb950;">
+                <i class="fas fa-plus-circle"></i>
+            </div>
+            <div class="stat-info">
+                <h4>Creations</h4>
+                <p class="stat-number">{{ stats.creation }}</p>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: rgba(210, 153, 34, 0.2); color: #d29922;">
+                <i class="fas fa-pen"></i>
+            </div>
+            <div class="stat-info">
+                <h4>Modifications</h4>
+                <p class="stat-number">{{ stats.modification }}</p>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background-color: rgba(218, 54, 51, 0.2); color: #f85149;">
+                <i class="fas fa-trash"></i>
+            </div>
+            <div class="stat-info">
+                <h4>Eliminations</h4>
+                <p class="stat-number">{{ stats.elimination }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Stats Row (3 Columns) -->
+    <div style="display: flex; gap: 20px; margin-top: 20px;">
+
+        <!-- Left: #1 Top Rule -->
+        <div class="stat-card" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+            <div
+                style="display: flex; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #30363d; padding: 10px 15px 5px 3px;">
+                <div class="stat-icon"
+                    style="background-color: rgba(163, 113, 247, 0.2); color: #a371f7; margin-bottom: 0; margin-right: 15px; width: 30px; height: 30px; font-size: 0.9rem;">
+                    <i class="fas fa-crown"></i>
+                </div>
+                <h4 style="color: #a371f7; margin: 0; font-size: 0.95rem;">Most Active Rule</h4>
+            </div>
+
+            <div
+                style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; min-height: 50px; padding: 0 15px 0 3px;">
+                <div style="font-size: 1.2rem; font-weight: bold; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: left;"
+                    title="{{ top_rules[0].rule_name if top_rules else 'No Data' }}">
+                    {{ top_rules[0].rule_name if top_rules else '' }}
+                </div>
+            </div>
+
+            <div
+                style="border-top: 1px solid #30363d; padding: 5px 15px 5px 3px; text-align: left; color: #8b949e; font-size: 0.8rem;">
+                <i class="fas fa-chart-line"></i> {{ top_rules[0].count if top_rules else 0 }} actions
+            </div>
+        </div>
+
+        <!-- Middle: Tuning Drivers Pie Chart -->
+        <div class="stat-card" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+            <div
+                style="display: flex; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #30363d; padding: 10px 15px 5px 3px;">
+                <div class="stat-icon"
+                    style="background-color: rgba(56, 139, 253, 0.2); color: #58a6ff; margin-bottom: 0; margin-right: 15px; width: 30px; height: 30px; font-size: 0.9rem;">
+                    <i class="fas fa-sliders-h"></i>
+                </div>
+                <h4 style="color: #58a6ff; margin: 0; font-size: 0.95rem;">Tuning Drivers</h4>
+            </div>
+            <div style="flex: 1; position: relative; min-height: 70px; padding: 0 0 5px 3px;">
+                <canvas id="tuningDriverChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Right: Top 5 Rules Pie Chart -->
+        <div class="stat-card" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+            <div
+                style="display: flex; align-items: center; margin-bottom: 5px; border-bottom: 1px solid #30363d; padding: 10px 15px 5px 3px;">
+                <div class="stat-icon"
+                    style="background-color: rgba(210, 153, 34, 0.2); color: #d29922; margin-bottom: 0; margin-right: 15px; width: 30px; height: 30px; font-size: 0.9rem;">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <h4 style="color: #d29922; margin: 0; font-size: 0.95rem;">Top 5 Active Rules</h4>
+            </div>
+            <div style="flex: 1; position: relative; min-height: 70px; padding: 0 0 5px 3px;">
+                <canvas id="topRulesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="chart-container" style="margin-top: 30px;">
+        <h3 class="form-title" style="margin-bottom: 20px; border-bottom: none;">Histogram</h3>
+        <canvas id="activityChart"></canvas>
+    </div>
+</div>
+
+<script>
+    function toggleFilters() {
+        var filterSection = document.getElementById('filterSection');
+        var btn = document.getElementById('toggleFilters');
+
+        if (filterSection.style.display === 'none') {
+            filterSection.style.display = 'block';
+            btn.innerHTML = '<i class="fas fa-filter"></i> Hide Filters';
+        } else {
+            filterSection.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-filter"></i> Show Filters';
+        }
+    }
+
+
+    // Global theme variables for all charts
+    const isLight = {{ 'true' if current_user.theme_preference == 'light' else 'false' }};
+    const gridColor = isLight ? '#d0d7de' : '#30363d';
+    const textColor = isLight ? '#57606a' : '#8b949e';
+    const titleColor = isLight ? '#24292f' : '#c9d1d9';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var ctx = document.getElementById('activityChart').getContext('2d');
+
+        var chartData = {{ chart_data| tojson
+    }};
+
+    var myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Creation',
+                    data: chartData.datasets.creation,
+                    backgroundColor: '#238636', /* Green */
+                    borderRadius: 4,
+                    barThickness: 10
+                },
+                {
+                    label: 'Modification',
+                    data: chartData.datasets.modification,
+                    backgroundColor: '#d29922', /* Yellow/Orange */
+                    borderRadius: 4,
+                    barThickness: 10
+                },
+                {
+                    label: 'Elimination',
+                    data: chartData.datasets.elimination,
+                    backgroundColor: '#da3633', /* Red */
+                    borderRadius: 4,
+                    barThickness: 10
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: {
+                        display: true,
+                        color: gridColor,
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: textColor,
+                        font: {
+                            family: "'Outfit', sans-serif"
+                        }
+                    },
+                    border: {
+                        display: false
+                    }
+                },
+                y: {
+                    stacked: true,
+                    grid: {
+                        display: true,
+                        color: gridColor,
+                        drawBorder: false
+                    },
+                    ticks: {
+                        display: true,
+                        color: textColor
+                    },
+                    border: {
+                        display: false
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        color: textColor,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    titleColor: titleColor,
+                    bodyColor: textColor,
+                    backgroundColor: isLight ? '#ffffff' : '#161b22',
+                    borderColor: gridColor,
+                    titleColor: isLight ? '#24292f' : '#fff',
+                    borderWidth: 1,
+                    padding: 10,
+                    cornerRadius: 8
+                }
+            },
+            layout: {
+                padding: {
+                    top: 10,
+                    bottom: 50,
+                    left: 20,
+                    right: 20
+                }
+            }
+        }
+    });
+    });
+    // --- Tuning Drivers Horizontal Bar Chart ---
+    {% if tuning_driver_data.labels %}
+    const ctxDriver = document.getElementById('tuningDriverChart').getContext('2d');
+    new Chart(ctxDriver, {
+        type: 'bar',
+        data: {
+            labels: [{% for label in tuning_driver_data.labels %}"{{ label }}",{% endfor %}],
+        datasets: [{
+            data: [{% for count in tuning_driver_data.counts %}{{ count }}, {% endfor %}],
+        backgroundColor: ['#58a6ff', '#238636', '#d29922', '#da3633', '#a371f7'],
+        borderWidth: 0,
+        barPercentage: 0.7,
+        categoryPercentage: 0.8
+            }]
+        },
+        options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return context.raw + ' events';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                display: true,
+                grid: {
+                    color: gridColor,
+                    drawBorder: false
+                },
+                ticks: {
+                    color: textColor,
+                    font: { size: 11 }
+                }
+            },
+            y: {
+                display: true,
+                grid: { display: false, drawBorder: false },
+                ticks: {
+                    color: textColor,
+                    font: { size: 12, weight: 'bold' },
+                    crossAlign: 'far',
+                    align: 'center',
+                    padding: 0,
+                    mirror: false
+                }
+            }
+        },
+        layout: {
+            padding: {
+                left: 0
+            }
+        }
+    }
+    });
+    {% endif %}
+
+    // --- Top Rules Horizontal Bar Chart ---
+    {% if top_rules %}
+    const ctxPie = document.getElementById('topRulesChart').getContext('2d');
+    new Chart(ctxPie, {
+        type: 'bar',
+        data: {
+            labels: [{% for rule in top_rules %}"{{ rule.rule_name }}",{% endfor %}],
+        datasets: [{
+            data: [{% for rule in top_rules %}{{ rule.count }}, {% endfor %}],
+        backgroundColor: ['#a371f7', '#d29922', '#58a6ff', '#238636', '#da3633'],
+        borderWidth: 0,
+        barPercentage: 0.7,
+        categoryPercentage: 0.8
+            }]
+        },
+        options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function (context) {
+                        return context.raw + ' actions';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                display: true,
+                grid: {
+                    color: gridColor,
+                    drawBorder: false
+                },
+                ticks: {
+                    color: textColor,
+                    font: { size: 11 }
+                }
+            },
+            y: {
+                display: true,
+                grid: { display: false, drawBorder: false },
+                ticks: {
+                    color: textColor,
+                    font: { size: 12, weight: 'bold' },
+                    crossAlign: 'far',
+                    align: 'center',
+                    padding: 0,
+                    callback: function (value) {
+                        const label = this.getLabelForValue(value);
+                        // Increased limit from 20 to 35 to prevent cutting off text
+                        return label.length > 35 ? label.substr(0, 35) + '...' : label;
+                    }
+                }
+            }
+        },
+        layout: {
+            padding: {
+                left: 0
+            }
+        }
+    }
+    });
+    {% endif %}
+</script>
+{% endblock %}
