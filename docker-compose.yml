@@ -28,8 +28,8 @@ services:
     working_dir: /app
     volumes:
       - .:/app
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       TZ: America/Santiago
       PYTHONUNBUFFERED: "1"
@@ -40,11 +40,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
     init: true
     command: >
-      sh -c "apt-get update > /dev/null 2>&1 &&  
-      apt-get install -y --no-install-recommends wget > /dev/null 2>&1 &&
-      rm -rf /var/lib/apt/lists/* &&
-      pip install --no-cache-dir -r /app/requirements.txt > /dev/null 2>&1 &&
-      gunicorn -w 2 -b 0.0.0.0:8000 --timeout 120 app:app"
+      sh -c "apt-get update > /dev/null 2>&1 &&   apt-get install -y --no-install-recommends wget > /dev/null 2>&1 && rm -rf /var/lib/apt/lists/* && pip install --no-cache-dir -r /app/requirements.txt > /dev/null 2>&1 && gunicorn -w 2 -b 0.0.0.0:8000 --timeout 120 app:app"
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health >/dev/null 2>&1 || exit 1" ]
       interval: 30s
