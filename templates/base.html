@@ -58,21 +58,21 @@
 
                         <!-- Dropdown Content (Repositioned to open up or to the side) -->
                         <div class="dropdown-content" style="bottom: 100%; top: auto; left: 10px; width: 200px;">
-                            <div class="dropdown-header">Hola, {{ current_user.full_name if current_user.full_name else
+                            <div class="dropdown-header">Hello, {{ current_user.full_name if current_user.full_name else
                                 session.get('username') }}</div>
-                            <a href="/profile">Mi Perfil</a>
+                            <a href="/profile">My Profile</a>
                             {% if current_user.role == 'Admin' %}
-                            <a href="/users">Gestión de Usuarios</a>
-                            <a href="/backup">Gestión de Respaldos</a>
+                            <a href="/users">User Management</a>
+                            <a href="/backup">Backup Management</a>
                             {% endif %}
-                            <a href="/logout" class="logout-item">Cerrar Sesión</a>
+                            <a href="/logout" class="logout-item">Logout</a>
                         </div>
                     </div>
                 </div>
 
                 {% else %}
                 <a href="/login" class="menu-item {{ 'active' if request.endpoint == 'login' else '' }}">
-                    <i class="fas fa-right-to-bracket"></i> <span>Iniciar Sesión</span>
+                    <i class="fas fa-right-to-bracket"></i> <span>Login</span>
                 </a>
                 {% endif %}
             </nav>

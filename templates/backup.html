@@ -4,7 +4,7 @@
 <div class="container-fluid" style="padding: 20px;">
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="color: var(--text-color); margin: 0;">Gestión de Respaldos</h2>
+        <h2 style="color: var(--text-color); margin: 0;">Backup Management</h2>
     </div>
 
     <!-- Actions Row: Generate & Upload -->
@@ -15,13 +15,12 @@
             <div class="card-body"
                 style="padding: 20px; display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h4 style="margin: 0 0 5px 0; color: var(--text-color);">Generar Nuevo Respaldo</h4>
-                    <span style="color: #8b949e; font-size: 0.9em;">Crea una copia del estado actual de la base de
-                        datos.</span>
+                    <h4 style="margin: 0 0 5px 0; color: var(--text-color);">Generate New Backup</h4>
+                    <span style="color: #8b949e; font-size: 0.9em;">Creates a copy of the current database state.</span>
                 </div>
                 <form action="{{ url_for('create_backup') }}" method="POST" style="margin: 0;">
                     <button type="submit" class="btn-primary" style="background-color: #238636; border-color: #238636;">
-                        <i class="fas fa-save"></i> Crear Respaldo
+                        <i class="fas fa-save"></i> Create Backup
                     </button>
                 </form>
             </div>
@@ -33,16 +32,15 @@
             <div class="card-body"
                 style="padding: 20px; display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                    <h4 style="margin: 0 0 5px 0; color: var(--text-color);">Subir Respaldo Externo</h4>
-                    <span style="color: #8b949e; font-size: 0.9em;">Restaura desde un archivo .sql guardado
-                        localmente.</span>
+                    <h4 style="margin: 0 0 5px 0; color: var(--text-color);">Upload External Backup</h4>
+                    <span style="color: #8b949e; font-size: 0.9em;">Restores from a locally saved .sql file.</span>
                 </div>
                 <form action="{{ url_for('upload_backup') }}" method="POST" enctype="multipart/form-data"
                     style="margin: 0; display: flex; gap: 10px; align-items: center;">
                     <input type="file" name="backup_file" accept=".sql" required
                         style="color: var(--text-color); padding: 5px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg);">
                     <button type="submit" class="btn-secondary">
-                        <i class="fas fa-upload"></i> Subir
+                        <i class="fas fa-upload"></i> Upload
                     </button>
                 </form>
             </div>
@@ -54,7 +52,7 @@
         style="background-color: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 30px;">
         <div class="card-header"
             style="padding: 15px; border-bottom: 1px solid var(--border-color); font-weight: bold;">
-            <i class="fas fa-list"></i> Historial de Respaldos
+            <i class="fas fa-list"></i> Backup History
         </div>
         <div class="card-body" style="padding: 0;">
             {% if backups %}
@@ -62,14 +60,14 @@
                 <thead>
                     <tr
                         style="background-color: var(--sidebar-bg); border-bottom: 2px solid var(--border-color); text-align: left;">
-                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">Nombre del Archivo
+                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">File Name
                         </th>
-                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">Fecha de Creación
+                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">Creation Date
                         </th>
-                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">Tamaño</th>
+                        <th style="padding: 12px 15px; border-bottom: 1px solid var(--border-color);">Size</th>
                         <th
                             style="padding: 12px 15px; border-bottom: 1px solid var(--border-color); text-align: right;">
-                            Acciones</th>
+                            Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -83,15 +81,15 @@
                         <td style="padding: 12px 15px; text-align: right;">
                             <form action="{{ url_for('restore_backup', filename=backup.name) }}" method="POST"
                                 style="display: inline-block; margin-right: 5px;"
-                                onsubmit="return confirm('¿Estás seguro de que deseas RESTAURAR este respaldo? \n\nADVERTENCIA: Esto sobrescribirá la base de datos actual. Esta acción no se puede deshacer.');">
+                                onsubmit="return confirm('Are you sure you want to RESTORE this backup? \n\nWARNING: This will overwrite the current database. This action cannot be undone.');">
                                 <button type="submit" class="btn-secondary"
                                     style="padding: 5px 10px; font-size: 0.9em; background-color: #d29922; color: black; border: none;">
-                                    <i class="fas fa-upload"></i> Restaurar
+                                    <i class="fas fa-upload"></i> Restore
                                 </button>
                             </form>
                             <form action="{{ url_for('delete_backup', filename=backup.name) }}" method="POST"
                                 style="display: inline-block;"
-                                onsubmit="return confirm('¿Estás seguro de eliminar este archivo de respaldo?');">
+                                onsubmit="return confirm('Are you sure you want to delete this backup file?');">
                                 <button type="submit" class="btn-danger" style="padding: 5px 10px; font-size: 0.9em;">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -108,7 +106,7 @@
             {% else %}
             <div style="padding: 30px; text-align: center; color: #666;">
                 <i class="fas fa-folder-open" style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;"></i>
-                <p>No hay respaldos disponibles. Genera uno nuevo para empezar.</p>
+                <p>No backups available. Generate a new one to start.</p>
             </div>
             {% endif %}
         </div>
@@ -119,7 +117,7 @@
         style="background-color: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 6px;">
         <div class="card-header"
             style="padding: 15px; border-bottom: 1px solid var(--border-color); font-weight: bold;">
-            <i class="fas fa-clock"></i> Configuración de Respaldo Automático
+            <i class="fas fa-clock"></i> Automatic Backup Configuration
         </div>
         <div class="card-body" style="padding: 20px;">
             <form action="{{ url_for('schedule_backup') }}" method="POST"
@@ -129,40 +127,39 @@
                     <label style="cursor: pointer; display: flex; align-items: center; font-weight: bold;">
                         <input type="checkbox" name="enabled" style="margin-right: 10px; transform: scale(1.2);" {% if
                             schedule_config.get('enabled') %}checked{% endif %}>
-                        Activar Programación
+                        Enable Schedule
                     </label>
                 </div>
 
                 <div style="flex: 1; min-width: 200px; max-width: 300px;">
                     <label
-                        style="display: block; margin-bottom: 5px; color: #8b949e; font-size: 0.9em;">Frecuencia</label>
+                        style="display: block; margin-bottom: 5px; color: #8b949e; font-size: 0.9em;">Frequency</label>
                     <select name="frequency" class="form-control"
                         style="width: 100%; padding: 8px; background-color: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 5px;">
                         <option value="daily" {% if schedule_config.get('frequency')=='daily' %}selected{% endif %}>
-                            Diario</option>
+                            Daily</option>
                         <option value="weekly" {% if schedule_config.get('frequency')=='weekly' %}selected{% endif %}>
-                            Semanal (Cada Lunes)</option>
+                            Weekly (Every Monday)</option>
                     </select>
                 </div>
 
                 <div style="flex: 1; min-width: 150px; max-width: 200px;">
-                    <label style="display: block; margin-bottom: 5px; color: #8b949e; font-size: 0.9em;">Hora de
-                        Ejecución</label>
+                    <label style="display: block; margin-bottom: 5px; color: #8b949e; font-size: 0.9em;">Execution Time</label>
                     <input type="time" name="time" value="{{ schedule_config.get('time', '00:00') }}"
                         class="form-control"
                         style="width: 100%; padding: 8px; background-color: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-color); border-radius: 5px;">
                 </div>
 
                 <button type="submit" class="btn-primary" style="height: 38px;">
-                    Guardar Configuración
+                    Save Configuration
                 </button>
 
             </form>
             {% if schedule_config.get('enabled') %}
             <div
                 style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); color: #238636;">
-                <i class="fas fa-check-circle"></i> <strong>Estado:</strong> El respaldo automático se ejecutará {{
-                'diariamente' if schedule_config.frequency == 'daily' else 'semanalmente (Lunes)' }} a las {{
+                <i class="fas fa-check-circle"></i> <strong>Status:</strong> The automatic backup will run {{
+                'daily' if schedule_config.frequency == 'daily' else 'weekly (Mondays)' }} at {{
                 schedule_config.time }}.
             </div>
             {% endif %}
