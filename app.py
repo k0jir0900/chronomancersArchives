@@ -210,20 +210,46 @@ def history():
     cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
     rules = [row['rule_name'] for row in cursor.fetchall()]
 
+    cursor.execute("SELECT DISTINCT company FROM archives ORDER BY company")
+    companies = [row['company'] for row in cursor.fetchall()]
+
+    cursor.execute("SELECT DISTINCT environment FROM archives ORDER BY environment")
+    environments = [row['environment'] for row in cursor.fetchall()]
+
     selected_rule = request.args.get('rule_name')
+    selected_company = request.args.get('company')
+    selected_environment = request.args.get('environment')
+    
     timeline_data = []
     summary = {}
 
+    conditions = []
+    params = []
+    
     if selected_rule:
-        cursor.execute("SELECT * FROM archives WHERE rule_name = %s ORDER BY created_at DESC", (selected_rule,))
+        conditions.append("rule_name = %s")
+        params.append(selected_rule)
+    if selected_company:
+        conditions.append("company = %s")
+        params.append(selected_company)
+    if selected_environment:
+        conditions.append("environment = %s")
+        params.append(selected_environment)
+
+    if conditions:
+        query_conditions = " AND ".join(conditions)
+        cursor.execute(f"SELECT * FROM archives WHERE {query_conditions} ORDER BY created_at DESC", tuple(params))
         timeline_data = cursor.fetchall()
         
         if timeline_data:
             latest = timeline_data[0]
             oldest = timeline_data[-1]
             
+            title_parts = [r for r in [selected_rule, selected_company, selected_environment] if r]
+            title = ' - '.join(title_parts) if len(title_parts) > 0 else 'Multiple Rules'
+            
             summary = {
-                'rule_name': selected_rule,
+                'rule_name': title,
                 'first_created': oldest['created_at'],
                 'last_modified': latest['created_at'],
                 'current_status': latest['rule_status'],
@@ -239,18 +265,18 @@ def history():
             last_day = calendar.monthrange(latest['created_at'].year, latest['created_at'].month)[1]
             end_date = latest['created_at'].replace(day=last_day)
             
-            chart_query = """
+            chart_query = f"""
                 SELECT 
                     DATE(created_at) as date,
                     SUM(CASE WHEN action_type = 'creation' THEN 1 ELSE 0 END) as created,
                     SUM(CASE WHEN action_type = 'modification' THEN 1 ELSE 0 END) as modified,
                     SUM(CASE WHEN action_type = 'elimination' THEN 1 ELSE 0 END) as deleted
                 FROM archives 
-                WHERE rule_name = %s AND created_at >= %s AND created_at <= %s + INTERVAL 1 DAY
+                WHERE {query_conditions} AND created_at >= %s AND created_at <= %s + INTERVAL 1 DAY
                 GROUP BY DATE(created_at)
                 ORDER BY DATE(created_at) ASC
             """
-            cursor.execute(chart_query, (selected_rule, start_date, end_date))
+            cursor.execute(chart_query, tuple(params) + (start_date, end_date))
             daily_stats = cursor.fetchall()
             
             chart_data = {'labels': [], 'created': [], 'modified': [], 'deleted': []}
@@ -275,7 +301,8 @@ def history():
     cursor.close()
     conn.close()
     
-    return render_template('history.html', rules=rules, selected_rule=selected_rule, timeline=timeline_data, summary=summary, chart_data=chart_data if selected_rule and timeline_data else None)
+    is_active_search = bool(selected_rule or selected_company or selected_environment)
+    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

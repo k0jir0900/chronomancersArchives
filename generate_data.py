@@ -50,6 +50,8 @@ SERVICES = ['okta', 'aws', 'azure', 'windows', 'linux', 'cisco', 'nginx']
 ACTIONS = ['Login Failure', 'Brute Force', 'Privilege Escalation', 'Malware Download', 'Port Scan', 'SQL Injection', 'Ransomware Activity', 'Shadow Copy Deletion']
 TUNING_DRIVERS = ['fp_correction', 'hardening', 'new_use_case', 'maintenance']
 AUTHORS = ['Kaladin, Stormblessed', 'Kelsier, the Survivor of Hathsin', 'Vin, the Heir to the Ascension', 'Shallan Davar, Lightweaver', 'Dalinar Kholin, the Blackthorn', 'Sazed, the Keeper', 'Raoden, Prince of Elantris', 'Siri, Vessel of the Returned', 'Adolin Kholin, Prince’s Duelist', 'Hoid, Wit']
+COMPANIES = ['Acme Corp', 'Stark Industries', 'Wayne Enterprises', 'Umbrella Corporation', 'Cyberdyne Systems']
+ENVIRONMENTS = ['IT', 'OT']
 def generate_random_date(start_date, end_date):
     time_between_dates = end_date - start_date
     days_between_dates = time_between_dates.days
@@ -88,7 +90,9 @@ def main():
             "title": rule_title,
             "category": category,
             "service": service,
-            "id": str(uuid.uuid4())
+            "id": str(uuid.uuid4()),
+            "company": random.choice(COMPANIES),
+            "environment": random.choice(ENVIRONMENTS)
         })
 
     # 2. Simulate History
@@ -103,6 +107,8 @@ def main():
         
         creation_event = {
             "rule_name": rule["title"],
+            "company": rule["company"],
+            "environment": rule["environment"],
             "action_type": "creation",
             "rule_status": "active",
             "tuning_driver": "new_use_case",
@@ -145,6 +151,8 @@ def main():
             
             mod_event = {
                 "rule_name": rule["title"],
+                "company": rule["company"],
+                "environment": rule["environment"],
                 "action_type": "modification",
                 "rule_status": "active",
                 "tuning_driver": driver,
@@ -175,6 +183,8 @@ def main():
                 
                 del_event = {
                     "rule_name": rule["title"],
+                    "company": rule["company"],
+                    "environment": rule["environment"],
                     "action_type": "elimination",
                     "rule_status": "disabled",
                     "tuning_driver": "maintenance",
@@ -194,13 +204,15 @@ def main():
 
     sql = """
     INSERT INTO archives 
-    (rule_name, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, created_at) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, created_at) 
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     for e in events:
         val = (
             e['rule_name'], 
+            e['company'],
+            e['environment'],
             e['action_type'], 
             e['rule_status'], 
             e['tuning_driver'], 

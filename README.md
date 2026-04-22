@@ -42,7 +42,7 @@ DB_PASSWORD=chronomancers_pass
 Once the database and environment are configured, build and start the containers:
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 **Access:**
@@ -105,7 +105,7 @@ To populate the database with mock rules, history, and user activity, you can ex
 
 **Command:**
 ```bash
-docker-compose exec chronomancers_archives python generate_data.py
+docker compose exec chronomancers_archives python generate_data.py
 ```
 
 ---
