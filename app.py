@@ -9,7 +9,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-# Try to import APScheduler
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
@@ -23,19 +22,16 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 
-# Configuration for Uploads
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and \
             filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Database Connection
 def get_db_connection():
     try:
         connection = mysql.connector.connect(
@@ -50,7 +46,6 @@ def get_db_connection():
         print(f"Error: {err}")
         return None
 
-# Auth Decorator
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
@@ -59,44 +54,29 @@ def login_required(view):
         return view(**kwargs)
     return wrapped_view
 
-# Initialize DB and Default User
 def init_db():
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
         
-        # Check if default admin exists
         cursor.execute("SELECT * FROM users WHERE username = %s", ('admin',))
         user = cursor.fetchone()
         if not user:
             hashed_password = generate_password_hash('admin')
             try:
-                # Try inserting with full_name and role
                 cursor.execute("INSERT INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)", ('admin', 'Admin', hashed_password, 'Admin'))
                 conn.commit()
                 print("Default admin user created.")
             except mysql.connector.Error:
-                # Fallback for old schema
                 try:
                     cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ('admin', hashed_password, 'Admin'))
                     conn.commit()
                 except:
                     print("Could not create default user (check schema)")
 
-        # Migration: Add theme_preference column if not exists
-        try:
-            cursor.execute("SHOW COLUMNS FROM users LIKE 'theme_preference'")
-            if not cursor.fetchone():
-                cursor.execute("ALTER TABLE users ADD COLUMN theme_preference VARCHAR(20) DEFAULT 'dark'")
-                conn.commit()
-                print("Added theme_preference column to users table.")
-        except mysql.connector.Error as err:
-            print(f"Migration error: {err}")
-
         cursor.close()
         conn.close()
 
-# Context Processor to inject user data into all templates
 @app.context_processor
 def inject_user():
     user = None
@@ -104,17 +84,14 @@ def inject_user():
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor(dictionary=True)
-            # Fetch full_name as well
             try:
                 cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
                 user = cursor.fetchone()
             except:
-                # Fallback if full_name missing
                 try:
                     cursor.execute("SELECT username, role, profile_pic FROM users WHERE id = %s", (session['user_id'],))
                     user = cursor.fetchone()
                 except:
-                    # Fallback if profile_pic also missing
                     cursor.execute("SELECT username, role FROM users WHERE id = %s", (session['user_id'],))
                     user = cursor.fetchone()
             
@@ -122,7 +99,6 @@ def inject_user():
             conn.close()
     return dict(current_user=user)
 
-# Routes
 @app.route('/')
 def index():
     if 'user_id' in session:
@@ -139,35 +115,28 @@ def home():
     
     cursor = conn.cursor(dictionary=True)
     
-    # Date Filtering
     from datetime import datetime, timedelta
     
-    # Default to last 30 days
     default_start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     default_end = datetime.now().strftime('%Y-%m-%d')
     
     start_date = request.args.get('start_date', default_start)
     end_date = request.args.get('end_date', default_end)
     
-    # Filter dictionary for template
     filters = {
         'start_date': start_date,
         'end_date': end_date
     }
     
-    # 0. Total Unique Rules (Unfiltered)
     cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives")
     unique_rules_count = cursor.fetchone()['unique_total']
 
-    # 1. Total Events
     cursor.execute("SELECT COUNT(*) as total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     total_events = cursor.fetchone()['total']
     
-    # 2. Counts by Action Type
     cursor.execute("SELECT action_type, COUNT(*) as count FROM archives WHERE created_at BETWEEN %s AND %s GROUP BY action_type", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     action_counts = {row['action_type']: row['count'] for row in cursor.fetchall()}
     
-    # Ensure all keys exist for templates
     stats = {
         'unique_rules': unique_rules_count,
         'total': total_events,
@@ -176,13 +145,9 @@ def home():
         'elimination': action_counts.get('elimination', 0)
     }
     
-    # 3. Top Rules for Pie Chart (Top 5 Active)
     cursor.execute("SELECT rule_name, COUNT(*) as count FROM archives WHERE created_at BETWEEN %s AND %s GROUP BY rule_name ORDER BY count DESC LIMIT 5", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     top_rules = cursor.fetchall()
 
-    # 4. Tuning Drivers for Pie Chart
-    # Check if 'tuning_driver' column exists (for backward compatibility)
-    # Process Tuning Drivers for Pie Chart (Middle Card)
     cursor.execute("SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' GROUP BY tuning_driver")
     tuning_drivers = cursor.fetchall()
     
@@ -198,7 +163,6 @@ def home():
         'counts': [row['count'] for row in tuning_drivers]
     }
     
-    # 5. Daily Stats for Chart (Stacked Bar)
     cursor.execute("""
         SELECT DATE(created_at) as log_date, action_type, COUNT(*) as count 
         FROM archives 
@@ -207,13 +171,6 @@ def home():
         ORDER BY log_date ASC
     """, (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     daily_rows = cursor.fetchall()
-    
-    # Process for Chart.js
-    # We need a list of unique dates (labels) and data arrays for each action type
-    # If no data exists for a range, we might want to fill gaps, but for now let's just show present data
-    # Better yet, generate range of dates?
-    # For simplicity, we use unique dates found in DB + maybe start/end if empty?
-    # Let's stick to dates with data for now, or just filtered logic.
     
     dates = sorted(list(set(str(row['log_date']) for row in daily_rows)))
     
@@ -226,7 +183,6 @@ def home():
         }
     }
     
-    # Map dates to indices
     date_to_idx = {date: i for i, date in enumerate(dates)}
     
     for row in daily_rows:
@@ -251,7 +207,6 @@ def history():
 
     cursor = conn.cursor(dictionary=True)
 
-    # 1. Fetch distinct rule names for the dropdown
     cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
     rules = [row['rule_name'] for row in cursor.fetchall()]
 
@@ -260,12 +215,10 @@ def history():
     summary = {}
 
     if selected_rule:
-        # 2. Fetch all records for the selected rule
         cursor.execute("SELECT * FROM archives WHERE rule_name = %s ORDER BY created_at DESC", (selected_rule,))
         timeline_data = cursor.fetchall()
         
         if timeline_data:
-            # 3. Calculate Summary Stats
             latest = timeline_data[0]
             oldest = timeline_data[-1]
             
@@ -279,7 +232,6 @@ def history():
                 'last_modifier': latest.get('modified_by', 'Unknown')
             }
             
-            # 4. Prepare Chart Data (Time Window: Start of Creation Month -> End of Modification Month)
             from datetime import timedelta
             import calendar
             
@@ -287,7 +239,6 @@ def history():
             last_day = calendar.monthrange(latest['created_at'].year, latest['created_at'].month)[1]
             end_date = latest['created_at'].replace(day=last_day)
             
-            # Query for daily counts within this range for this rule
             chart_query = """
                 SELECT 
                     DATE(created_at) as date,
@@ -302,7 +253,6 @@ def history():
             cursor.execute(chart_query, (selected_rule, start_date, end_date))
             daily_stats = cursor.fetchall()
             
-            # Fill in missing days
             chart_data = {'labels': [], 'created': [], 'modified': [], 'deleted': []}
             stats_map = {row['date']: row for row in daily_stats}
             
@@ -345,7 +295,7 @@ def login():
         if user and check_password_hash(user['password_hash'], password):
             session.clear()
             session['user_id'] = user['id']
-            session['username'] = user['username']  # Store username for auditing
+            session['username'] = user['username']
             return redirect(url_for('home'))
         
         flash('Invalid username or password.', 'error')
@@ -377,16 +327,13 @@ def register():
         if conn:
             cursor = conn.cursor(dictionary=True)
             
-            # Fetch User's Real Name
             try:
                 cursor.execute("SELECT full_name, username FROM users WHERE id = %s", (session['user_id'],))
                 user_info = cursor.fetchone()
-                # Use full_name if available, otherwise username
                 modifier_name = user_info['full_name'] if user_info and user_info.get('full_name') else session.get('username')
             except:
                 modifier_name = session.get('username')
 
-            # Insert into Archives
             query = "INSERT INTO archives (rule_name, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
             values = (rule_name, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name)
             
@@ -418,17 +365,15 @@ def profile():
         action = request.form.get('action')
         
         if action == 'update_info':
-            # Only update full_name, NOT username
             full_name = request.form.get('full_name')
             file = request.files.get('profile_pic')
             
+            cursor = None
             try:
                 cursor = conn.cursor()
                 
-                # Update Full Name
                 cursor.execute("UPDATE users SET full_name = %s WHERE id = %s", (full_name, session['user_id']))
                 
-                # Handle File Upload
                 if file and file.filename != '' and allowed_file(file.filename):
                     filename = secure_filename(f"user_{session['user_id']}_{file.filename}")
                     file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
@@ -439,7 +384,8 @@ def profile():
             except mysql.connector.Error as err:
                 flash(f'Error updating profile: {err}', 'error')
             finally:
-                cursor.close()
+                if cursor:
+                    cursor.close()
 
         elif action == 'change_password':
             current_password = request.form.get('current_password')
@@ -451,6 +397,7 @@ def profile():
             elif new_password != confirm_password:
                 flash('New passwords do not match.', 'error')
             else:
+                cursor = None
                 try:
                     cursor = conn.cursor(dictionary=True)
                     cursor.execute("SELECT password_hash FROM users WHERE id = %s", (session['user_id'],))
@@ -465,14 +412,14 @@ def profile():
                         flash('Incorrect current password.', 'error')
                 except mysql.connector.Error as err:
                     flash(f'Database error: {err}', 'error')
-                except mysql.connector.Error as err:
-                    flash(f'Database error: {err}', 'error')
                 finally:
-                    cursor.close()
+                    if cursor:
+                        cursor.close()
 
         elif action == 'update_theme':
             theme = request.form.get('theme')
             if theme in ['dark', 'light']:
+                cursor = None
                 try:
                     cursor = conn.cursor()
                     cursor.execute("UPDATE users SET theme_preference = %s WHERE id = %s", (theme, session['user_id']))
@@ -481,22 +428,27 @@ def profile():
                 except mysql.connector.Error as err:
                     flash(f'Error updating theme: {err}', 'error')
                 finally:
-                    cursor.close()
+                    if cursor:
+                        cursor.close()
             else:
                 flash('Invalid theme selected.', 'error')
 
         return redirect(url_for('profile'))
 
-    # GET request
-    cursor = conn.cursor(dictionary=True)
+    cursor = None
+    user_data = None
     try:
-        cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
-    except:
-        cursor.execute("SELECT username, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
-    
-    user_data = cursor.fetchone()
-    cursor.close()
-    conn.close()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
+        except:
+            cursor.execute("SELECT username, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
+        
+        user_data = cursor.fetchone()
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
     
     return render_template('profile.html', user=user_data)
 
@@ -504,14 +456,12 @@ def profile():
 def health():
     return "OK", 200
 
-# Attempt to initialize DB on startup
 try:
     with app.app_context():
         init_db()
 except Exception as e:
     print(f"Warning: Could not initialize DB on startup: {e}")
 
-# Admin Required Decorator
 def admin_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
@@ -641,12 +591,10 @@ def delete_user(user_id):
     return redirect(url_for('users'))
 
 
-# Validations for Backup
 BACKUP_FOLDER = os.path.join(os.getcwd(), 'backups')
 if not os.path.exists(BACKUP_FOLDER):
     os.makedirs(BACKUP_FOLDER)
 
-# Helper function to generate SQL dump (Python-based)
 def generate_backup_custom(filepath):
     conn = get_db_connection()
     if not conn:
@@ -658,18 +606,15 @@ def generate_backup_custom(filepath):
             f.write(f"-- Chronomancers Archives Backup\n")
             f.write(f"-- Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
-            # Get Tables
             cursor.execute("SHOW TABLES")
             tables = [table[0] for table in cursor.fetchall()]
             
             for table_name in tables:
-                # Get Schema
                 cursor.execute(f"SHOW CREATE TABLE {table_name}")
                 create_table_sql = cursor.fetchone()[1]
                 f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
                 f.write(f"{create_table_sql};\n\n")
                 
-                # Get Data
                 cursor.execute(f"SELECT * FROM {table_name}")
                 rows = cursor.fetchall()
                 if rows:
@@ -683,7 +628,6 @@ def generate_backup_custom(filepath):
                             elif isinstance(val, (int, float)):
                                 row_values.append(str(val))
                             else:
-                                # Escape single quotes and backslashes
                                 escaped_val = str(val).replace("\\", "\\\\").replace("'", "\\'")
                                 row_values.append(f"'{escaped_val}'")
                         values_list.append(f"({', '.join(row_values)})")
@@ -697,7 +641,6 @@ def generate_backup_custom(filepath):
         print(f"Backup Error: {e}")
         return False
 
-# Function to restore from SQL dump
 def restore_backup_custom(filepath):
     conn = get_db_connection()
     if not conn:
@@ -705,15 +648,11 @@ def restore_backup_custom(filepath):
         
     try:
         cursor = conn.cursor()
-        # Disable foreign key checks temporarily
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
         
         with open(filepath, 'r', encoding='utf-8') as f:
             sql_script = f.read()
             
-        # Parse and execute (Split by semicolon, but handle cases carefuly)
-        # Simple split might break if data contains semicolon. 
-        # For this simple implementation we assume standard SQL dumps generated by us.
         statements = sql_script.split(';')
         for statement in statements:
             if statement.strip():
@@ -738,14 +677,12 @@ def list_backups():
             if f.endswith('.sql'):
                 path = os.path.join(BACKUP_FOLDER, f)
                 created_time = datetime.fromtimestamp(os.path.getctime(path)).strftime('%Y-%m-%d %H:%M:%S')
-                # Size in MB
                 size_mb = os.path.getsize(path) / (1024 * 1024)
                 backups.append({
                     'name': f,
                     'size': f"{size_mb:.2f} MB",
                     'date': created_time
                 })
-    # Sort by date desc
     backups.sort(key=lambda x: x['date'], reverse=True)
     return render_template('backup.html', backups=backups)
 
@@ -846,7 +783,6 @@ def save_schedule_config(config):
 
 def scheduled_backup_job():
     with app.app_context():
-        # Auto-generate filename
         filename = f"auto_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
         filepath = os.path.join(BACKUP_FOLDER, filename)
         print(f"Running Scheduled Backup: {filename}")
@@ -867,7 +803,6 @@ def init_scheduler():
             if frequency == 'daily':
                 trigger = CronTrigger(hour=hour, minute=minute)
             elif frequency == 'weekly':
-                # Default to Monday for weekly
                 trigger = CronTrigger(day_of_week='mon', hour=hour, minute=minute)
                 
             if trigger:
@@ -886,7 +821,6 @@ def init_scheduler():
         if scheduler.get_job('backup_job'):
             scheduler.remove_job('backup_job')
 
-# Initialize scheduler on startup
 if scheduler_available:
     init_scheduler()
     if scheduler:
@@ -914,12 +848,11 @@ def schedule_backup():
     }
     
     save_schedule_config(config)
-    init_scheduler() # Reload job
-    
+    init_scheduler()
+
     flash('Programación de respaldo actualizada.', 'success')
     return redirect(url_for('list_backups'))
 
-# Pass schedule config to template
 @app.context_processor
 def inject_schedule_config():
     if request.endpoint == 'list_backups':

@@ -1,7 +1,44 @@
 services:
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_INITDB_SKIP_TZINFO: "1"
+      TZ: ${TZ}
+    expose:
+      - "3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    command:
+      - mysqld
+      - --innodb_buffer_pool_size=2G
+      - --innodb_buffer_pool_instances=2
+      - --max_connections=150
+      - --thread_cache_size=50
+      - --innodb_flush_log_at_trx_commit=1
+      - --tmp_table_size=64M
+      - --max_heap_table_size=64M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-name-resolve=ON
+      - --max_allowed_packet=64M
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   certgen:
     image: alpine:latest
-    working_dir: /certgen
+    working_dir: /certs
     environment:
       DOMAIN: ${DOMAIN}
       DAYS: ${DAYS}
@@ -14,10 +51,10 @@ services:
           apk add --no-cache openssl su-exec dos2unix >/dev/null;
           adduser -S -D -H certgen;
           chown -R certgen /certs;
-          cp /tmp/certgen.sh /certgen/certgen.run;
-          dos2unix -f /certgen/certgen.run;
-          chmod 755 /certgen/certgen.run;
-          exec su-exec certgen /certgen/certgen.run"
+          cp /tmp/certgen.sh /tmp/certgen.run;
+          dos2unix -f /tmp/certgen.run;
+          chmod +x /tmp/certgen.run;
+          exec su-exec certgen /tmp/certgen.run"
 
   chronomancers_archives:
     image: python:slim
@@ -25,6 +62,8 @@ services:
     depends_on:
       certgen:
         condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
     working_dir: /app
     volumes:
       - .:/app
@@ -70,3 +109,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+volumes:
+  mysql_data:

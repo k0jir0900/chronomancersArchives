@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(255) DEFAULT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'User',
+    profile_pic VARCHAR(255) DEFAULT NULL,
+    theme_preference VARCHAR(20) DEFAULT 'dark',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
