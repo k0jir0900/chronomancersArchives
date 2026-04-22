@@ -216,9 +216,20 @@ def history():
     cursor.execute("SELECT DISTINCT environment FROM archives ORDER BY environment")
     environments = [row['environment'] for row in cursor.fetchall()]
 
+    cursor.execute("""
+        SELECT rule_name, company, environment, rule_status 
+        FROM archives 
+        WHERE id IN (
+            SELECT MAX(id) FROM archives GROUP BY rule_name
+        )
+        ORDER BY rule_name
+    """)
+    all_rules_metadata = cursor.fetchall()
+
     selected_rule = request.args.get('rule_name')
     selected_company = request.args.get('company')
     selected_environment = request.args.get('environment')
+    selected_status = request.args.get('status')
     
     timeline_data = []
     summary = {}
@@ -235,6 +246,9 @@ def history():
     if selected_environment:
         conditions.append("environment = %s")
         params.append(selected_environment)
+    if selected_status:
+        conditions.append("rule_status = %s")
+        params.append(selected_status)
 
     if conditions:
         query_conditions = " AND ".join(conditions)
@@ -255,7 +269,9 @@ def history():
                 'current_status': latest['rule_status'],
                 'total_events': len(timeline_data),
                 'creator': oldest.get('modified_by', 'Unknown'),
-                'last_modifier': latest.get('modified_by', 'Unknown')
+                'last_modifier': latest.get('modified_by', 'Unknown'),
+                'company': latest.get('company', 'N/A'),
+                'environment': latest.get('environment', 'N/A')
             }
             
             from datetime import timedelta
@@ -301,8 +317,8 @@ def history():
     cursor.close()
     conn.close()
     
-    is_active_search = bool(selected_rule or selected_company or selected_environment)
-    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search)
+    is_active_search = bool(selected_rule or selected_company or selected_environment or selected_status)
+    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
