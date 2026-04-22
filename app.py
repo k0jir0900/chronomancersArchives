@@ -312,6 +312,8 @@ def logout():
 def register():
     if request.method == 'POST':
         rule_name = request.form.get('rule_name')
+        company = request.form.get('company')
+        environment = request.form.get('environment')
         action_type = request.form.get('action_type')
         rule_status = request.form.get('rule_status', 'active')
         tuning_driver = request.form.get('tuning_driver', 'maintenance')
@@ -319,7 +321,7 @@ def register():
         description = request.form.get('description')
         rule_content = request.form.get('rule_content')
 
-        if not rule_name or not action_type or not description or not rule_content:
+        if not rule_name or not company or not environment or not action_type or not description or not rule_content:
             flash('All mandatory fields must be filled.', 'error')
             return redirect(url_for('register'))
 
@@ -334,8 +336,8 @@ def register():
             except:
                 modifier_name = session.get('username')
 
-            query = "INSERT INTO archives (rule_name, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (rule_name, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name)
+            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name)
             
             try:
                 cursor.execute(query, values)

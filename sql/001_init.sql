@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS archives (
     id INT AUTO_INCREMENT PRIMARY KEY,
     rule_name VARCHAR(255) NOT NULL,
+    company VARCHAR(255) NOT NULL,
+    environment VARCHAR(50) NOT NULL,
     rule_status VARCHAR(20) DEFAULT 'active',
     tuning_driver VARCHAR(50) DEFAULT 'maintenance',
     action_type ENUM('creation', 'modification', 'elimination') NOT NULL,

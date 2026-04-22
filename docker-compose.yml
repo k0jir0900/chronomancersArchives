@@ -43,6 +43,8 @@ services:
       DOMAIN: ${DOMAIN}
       DAYS: ${DAYS}
     volumes:
+
+    
       - ./certgen/certs:/certs
       - ./certgen/certgen.sh:/tmp/certgen.sh
     entrypoint: /bin/sh
