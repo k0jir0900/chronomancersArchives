@@ -113,8 +113,10 @@
             {{ summary.rule_name if summary else 'No results' }}
         </h2>
         {% else %}
-        <h2 class="form-title" style="margin-bottom: 20px; font-size: 2rem; border-bottom: none;">Rules History
-        </h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: none;">
+            <h2 class="form-title" style="margin-bottom: 0; font-size: 2rem; border-bottom: none;">Rules History</h2>
+            <a href="/diff" class="btn-primary" style="text-decoration: none;"><i class="fas fa-columns"></i> Compare Rules</a>
+        </div>
         {% endif %}
     </div>
 

@@ -320,6 +320,53 @@ def history():
     is_active_search = bool(selected_rule or selected_company or selected_environment or selected_status)
     return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata)
 
+@app.route('/diff')
+@login_required
+def diff_rules():
+    selected_rule = request.args.get('rule_name')
+    v1_id = request.args.get('v1')
+    v2_id = request.args.get('v2')
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('history'))
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
+    all_rules = [row['rule_name'] for row in cursor.fetchall()]
+    
+    versions = []
+    rule1_data = None
+    rule2_data = None
+    
+    if selected_rule:
+        cursor.execute("SELECT id, created_at, action_type, modified_by, tuning_driver FROM archives WHERE rule_name = %s ORDER BY created_at DESC", (selected_rule,))
+        versions = cursor.fetchall()
+        
+        if v1_id:
+            cursor.execute("SELECT rule_content, created_at FROM archives WHERE id = %s", (v1_id,))
+            rule1_data = cursor.fetchone()
+        
+        if v2_id:
+            cursor.execute("SELECT rule_content, created_at FROM archives WHERE id = %s", (v2_id,))
+            rule2_data = cursor.fetchone()
+            
+    cursor.close()
+    conn.close()
+    
+    r1_content = rule1_data['rule_content'] if rule1_data and rule1_data['rule_content'] else ''
+    r2_content = rule2_data['rule_content'] if rule2_data and rule2_data['rule_content'] else ''
+    
+    v1_label = f"Version {rule1_data['created_at'].strftime('%Y-%m-%d %H:%M')}" if rule1_data else "Version 1"
+    v2_label = f"Version {rule2_data['created_at'].strftime('%Y-%m-%d %H:%M')}" if rule2_data else "Version 2"
+    
+    r1_json = json.dumps(r1_content)
+    r2_json = json.dumps(r2_content)
+    
+    return render_template('diff.html', all_rules=all_rules, selected_rule=selected_rule, versions=versions, v1_id=v1_id, v2_id=v2_id, rule1_content_json=r1_json, rule2_content_json=r2_json, v1_label=v1_label, v2_label=v2_label)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
