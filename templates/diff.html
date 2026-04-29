@@ -61,16 +61,23 @@
     <style>
         .d2h-file-header { display: none; }
         .d2h-code-line { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5; }
-        .d2h-file-side-diff { width: 50%; }
+        .d2h-file-side-diff { width: 50%; border-color: var(--border-color) !important; background: transparent !important; }
         
         /* Dark Theme Overrides */
-        .d2h-file-wrapper { border: none !important; margin: 0 !important; background: var(--sidebar-bg) !important; padding: 3em 0 !important; }
+        .d2h-file-wrapper { border: none !important; margin: 0 !important; background: var(--sidebar-bg) !important; padding: 1.5em 0 !important; }
         .d2h-code-line-ctn { color: var(--text-color) !important; }
         .d2h-code-line-prefix { color: var(--muted-text) !important; background-color: var(--input-bg) !important; border-color: var(--border-color) !important; }
         .d2h-code-linenumber, .d2h-code-side-linenumber { color: var(--muted-text) !important; background-color: var(--input-bg) !important; border-color: var(--border-color) !important; }
         .d2h-emptyplaceholder, .d2h-code-side-emptyplaceholder { background-color: var(--sidebar-bg) !important; border-color: var(--border-color) !important; }
-        .d2h-file-side-diff { border-color: var(--border-color) !important; }
         .d2h-wrapper, .d2h-diff-table, .d2h-diff-tbody { background: transparent !important; }
+        
+        /* Add spacing between code and horizontal scrollbar */
+        .d2h-code-wrapper { background: transparent !important; margin-bottom: 15px !important; }
+        
+        /* Dark Theme Scrollbars */
+        #diff-target *::-webkit-scrollbar { height: 12px; width: 12px; background: var(--sidebar-bg); }
+        #diff-target *::-webkit-scrollbar-track { background: var(--sidebar-bg); border-radius: 6px; }
+        #diff-target *::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 6px; border: 3px solid var(--sidebar-bg); }
         
         /* Line backgrounds */
         .d2h-ins { background-color: rgba(35, 134, 54, 0.2) !important; }
