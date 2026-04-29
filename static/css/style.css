@@ -808,10 +808,15 @@ input[type="date"] {
 
 .content-box {
     flex: 1;
+    min-width: 0;
     background-color: var(--sidebar-bg);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 15px;
+}
+
+.content-box.code-box {
+    flex: 2.5;
 }
 
 .content-box h4 {
