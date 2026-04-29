@@ -221,21 +221,21 @@
                 </div>
 
                 <!-- Content of Box -->
-                <div style="padding: 10px; display: flex; gap: 15px;">
-                    <!-- Details Column -->
-                    <div style="flex: 1; border-right: 1px solid #eee; padding-right: 15px;">
+                <div style="padding: 10px; display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Details Row -->
+                    <div style="padding-bottom: 10px; border-bottom: 1px solid #eee;">
                         <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">
                             Detail</div>
                         <div style="font-size: 12px; line-height: 1.3; color: #000;">{{ log.description }}</div>
                     </div>
 
-                    <!-- Code Column -->
+                    <!-- Code Row -->
                     <div
-                        style="flex: 1; background-color: #fdfdfd; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
+                        style="background-color: #fdfdfd; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
                         <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">Rule
                         </div>
                         <pre
-                            style="margin: 0; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #000;">{{ log.rule_content }}</pre>
+                            style="margin: 0; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 8.5px; color: #000; line-height: 1.2;">{{ log.rule_content }}</pre>
                     </div>
                 </div>
             </div>
