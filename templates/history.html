@@ -170,7 +170,7 @@
                 </div>
                 <div
                     style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Count:</span>
+                    <span style="color: #000;">Versions:</span>
                     <span style="font-weight: bold;">{{ summary.total_events }}</span>
                 </div>
                 <!-- Row 4: Company | Environment -->
@@ -193,7 +193,7 @@
                 style="margin: 0 0 20px 0; font-size: 16px; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; text-transform: uppercase;">
                 Event Details</h3>
 
-            {% for log in timeline %}
+            {% for log in timeline|reverse %}
             <div style="margin-bottom: 15px; border: 1px solid #ccc; page-break-inside: avoid;">
                 <!-- Header of Box -->
                 <div
@@ -332,7 +332,7 @@
             <div class="summary-value" style="font-size: 1.2rem;">{{ summary.environment }}</div>
         </div>
         <div class="summary-box">
-            <div class="summary-label">Total Events</div>
+            <div class="summary-label">Versions</div>
             <div class="summary-value">{{ summary.total_events }}</div>
         </div>
         <div class="summary-box">
