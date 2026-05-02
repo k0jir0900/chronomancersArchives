@@ -98,9 +98,9 @@
         var rule1Content = {{ rule1_content_json | safe }};
         var rule2Content = {{ rule2_content_json | safe }};
         var diffString = Diff.createTwoFilesPatch(
-            "{{ selected_rule }}", "{{ selected_rule }}",
+            {{ selected_rule | tojson }}, {{ selected_rule | tojson }},
             rule1Content, rule2Content,
-            "{{ v1_label }}", "{{ v2_label }}"
+            {{ v1_label | tojson }}, {{ v2_label | tojson }}
         );
         var targetElement = document.getElementById('diff-target');
         var diff2htmlUi = new Diff2HtmlUI(targetElement, diffString, {

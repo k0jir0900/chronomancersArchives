@@ -47,7 +47,7 @@
 <datalist id="rule-list">{% for rule in rules %}<option value="{{ rule }}">{% endfor %}</datalist>
 <datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
 <datalist id="env-list">{% for environment in environments %}<option value="{{ environment }}">{% endfor %}</datalist>
-<datalist id="status-list"><option value="Active"><option value="Disabled"></datalist>
+<datalist id="status-list"><option value="active"><option value="disabled"></datalist>
 
 {% if is_active_search %}
 {% if summary %}
@@ -106,7 +106,7 @@
                     <strong>{{ log.created_at.strftime('%Y-%m-%d') }}</strong>
                     <span>| Modified by: <strong>{{ log.modified_by or 'System' }}</strong></span>
                     {% if log.ticket %}<span>| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
-                    <span>| Reason: <strong>{{ log.tuning_driver.replace('_',' ').title() }}</strong></span>
+                    <span>| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
                 </div>
                 <span style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.action_type|title }}</span>
             </div>
@@ -198,7 +198,7 @@
             <span class="text-secondary small">
                 <i class="bi bi-person-fill me-1"></i>Modified by: <strong style="color:#58a6ff;">{{ log.modified_by or 'System' }}</strong>
                 {% if log.ticket %}<span class="ms-2">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
-                <span class="ms-2">| Reason: <strong>{{ log.tuning_driver.replace('_',' ').title() }}</strong></span>
+                <span class="ms-2">| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
             </span>
             <span class="badge ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;">
                 {% if log.action_type == 'creation' %}Creation{% elif log.action_type == 'modification' %}Modification{% elif log.action_type == 'elimination' %}Elimination{% else %}{{ log.action_type }}{% endif %}

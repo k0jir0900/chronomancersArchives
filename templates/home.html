@@ -222,11 +222,12 @@
 
     {% if tuning_driver_data.labels %}
     const ctxDriver = document.getElementById('tuningDriverChart').getContext('2d');
+    const tuningData = {{ tuning_driver_data | tojson }};
     new Chart(ctxDriver, {
         type: 'bar',
         data: {
-            labels: [{% for label in tuning_driver_data.labels %}"{{ label }}",{% endfor %}],
-            datasets: [{ data: [{% for count in tuning_driver_data.counts %}{{ count }},{% endfor %}], backgroundColor: ['#58a6ff','#238636','#d29922','#da3633','#a371f7'], borderWidth: 0, barPercentage: 0.7 }]
+            labels: tuningData.labels,
+            datasets: [{ data: tuningData.counts, backgroundColor: ['#58a6ff','#238636','#d29922','#da3633','#a371f7'], borderWidth: 0, barPercentage: 0.7 }]
         },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -241,11 +242,12 @@
 
     {% if top_rules %}
     const ctxPie = document.getElementById('topRulesChart').getContext('2d');
+    const topRulesData = {{ top_rules | tojson }};
     new Chart(ctxPie, {
         type: 'bar',
         data: {
-            labels: [{% for rule in top_rules %}"{{ rule.rule_name }}",{% endfor %}],
-            datasets: [{ data: [{% for rule in top_rules %}{{ rule.count }},{% endfor %}], backgroundColor: ['#a371f7','#d29922','#58a6ff','#238636','#da3633'], borderWidth: 0, barPercentage: 0.7 }]
+            labels: topRulesData.map(r => r.rule_name),
+            datasets: [{ data: topRulesData.map(r => r.count), backgroundColor: ['#a371f7','#d29922','#58a6ff','#238636','#da3633'], borderWidth: 0, barPercentage: 0.7 }]
         },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,

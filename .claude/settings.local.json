@@ -6,7 +6,10 @@
       "WebFetch(domain:api.github.com)",
       "Bash(curl -s https://raw.githubusercontent.com/PlainAdmin/plain-free-bootstrap-admin-template/main/index.html)",
       "Bash(curl *)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(python *)",
+      "Bash(Test-Path *)",
+      "Bash(git rm *)"
     ]
   }
 }

@@ -1,88 +1,86 @@
 # Chronomancers Archives
 
-A Log Management and Rule Lifecycle Portal focused on compliance and history tracking.
+A web portal for managing detection rule lifecycles - tracking creations, modifications, and eliminations with full history, diff comparison, and PDF reporting.
 
-### 🗄️ 1. Database Configuration
-Before running the application, you must set up the MySQL database. Connect to your MySQL server and execute the following commands in order.
+## Requirements
 
-**Step A: Database & User Setup**
-Copy, paste, and execute these commands to create the database and user:
+- Docker and Docker Compose
 
-```sql
-CREATE DATABASE chronomancers_archives
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
+## Setup
 
-CREATE USER 'chronomancers_user'@'%' IDENTIFIED BY 'chronomancers_pass';
+### 1. Environment Variables
 
-GRANT ALL PRIVILEGES ON chronomancers_archives.* TO 'chronomancers_user'@'%';
-FLUSH PRIVILEGES;
-
-USE chronomancers_archives;
-```
-
-> [!WARNING]
-> **Security Notice:** The password `'chronomancers_pass'` is a default example. It is strongly recommended to change this to a secure password in a production environment.
-
-**Step B: Table Initialization**
-Copy, paste, and execute the contents of the `sql/001_init.sql` file to create the required tables (`users` and `archives`).
-
-**Step C: Environment Variables**
-Modify the existing `.env` file in the root directory to match the credentials above:
+Copy the `.env` file and set your values:
 
 ```bash
-DB_HOST=localhost
+# GENERAL
+TZ=America/Santiago
+SECRET_KEY=<generate a random secret key>
+
+# DB
+MYSQL_ROOT_PASSWORD=<secure password>
+DB_HOST=mysql
 DB_PORT=3306
 DB_NAME=chronomancers_archives
 DB_USER=chronomancers_user
-DB_PASSWORD=chronomancers_pass
+DB_PASSWORD=<secure password>
 ```
 
-**Step D: Launch Application**
-Once the database and environment are configured, build and start the containers:
+### 2. Start
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-**Access:**
-The portal is served via Nginx on port 443 (HTTPS):
-- URL: `https://localhost`
-- *Note: You may need to accept the self-signed certificate if running locally.*
+The portal runs at `http://localhost:5001`.
 
-### 👤 2. Default User
-Upon first launch, if checking the database reveals no existing users, a default administrator is created:
+### 3. Default Credentials
+
+On first launch a default admin user is created automatically:
 
 - **Username:** `admin`
 - **Password:** `admin`
 
 > [!WARNING]
-> **Security Notice:** Change this password immediately after logging in (Profile > Appearance & Security).
+> Change this password immediately after logging in (Profile > Security).
 
-### 📝 3. Registering a New Rule (Form Guide)
-When logging a new event via the **Register** page, fill out the form using the following guidelines:
+### Existing Deployment - Add Indexes
 
-*   **Rule Name**: A concise, unique name for the detection rule (e.g., `Suspicious CLI Command`).
-*   **Action Type**:
-    *   `Creation`: Introducing a brand new rule.
-    *   `Modification`: Tuning or updating an existing rule.
-    *   `Elimination`: Deprecating or removing a rule.
-*   **Rule Status**:
-    *   `Active`: Rule is running in production.
-    *   `Disabled`: Rule is turned off.
-*   **Tuning Driver**: The primary reason for this change.
-    *   `Maintenance`: Regular review or metadata update.
-    *   `False Positive Correction`: Adjusting logic to reduce noise.
-    *   `Hardening`: Creating more robust logic (anti-evasion).
-    *   `New Use Case`: Addressing a new threat scenario.
-*   **Associated Ticket**: Traceability ID (e.g., `JIRA-101`, `SNOW-505`).
-*   **Description**: Brief narrative explaining the context of the change.
-*   **Rule Content**: The code or queries defining the rule logic.
+If you have an existing database and want to apply the performance indexes introduced in `sql/002_indexes.sql`, connect to MySQL and run:
 
-#### Recommended Format: Sigma
-It is highly recommended to use the **Sigma** (YAML) format for the **Rule Content** field to ensure standardization.
+```bash
+docker compose exec mysql mysql -u root -p chronomancers_archives < sql/002_indexes.sql
+```
 
-**Template:**
+---
+
+## Features
+
+- **Dashboard** - Stats, activity histogram, tuning driver breakdown, and top rules chart with optional date filtering.
+- **CDU Registration** - Log a rule lifecycle event (creation, modification, elimination) with structured metadata.
+- **Rules History** - Browse all rules, search by name/company/environment/status, view full event timeline per rule, export to PDF.
+- **Version Diff** - Side-by-side comparison of any two versions of a rule's content.
+- **Backups** - Create, download, restore, and schedule automated database backups (admin only).
+- **User Management** - Create users, assign roles (User / Admin), reset passwords (admin only).
+
+---
+
+## Form Field Reference
+
+| Field | Description |
+|---|---|
+| Rule Name | Unique name for the detection rule (e.g., `Suspicious CLI Command`) |
+| Company | Organization the rule applies to |
+| Environment | Deployment scope (e.g., `Production`, `Staging`) |
+| Action Type | `creation` / `modification` / `elimination` |
+| Rule Status | `active` - running in production / `disabled` - turned off |
+| Tuning Driver | `maintenance` / `fp_correction` / `hardening` / `new_use_case` |
+| Associated Ticket | Optional traceability ID (e.g., `JIRA-101`, `SNOW-505`) |
+| Description | Context and rationale for the change |
+| Rule Content | Rule logic - Sigma (YAML) format recommended |
+
+### Sigma Template
+
 ```yaml
 title: {Rule Title}
 id: {UUID}
@@ -100,19 +98,24 @@ detection:
 level: medium
 ```
 
-### 🧪 4. Injecting Test Data (Optional)
-To populate the database with mock rules, history, and user activity, you can execute the included data generation script. This is useful for testing the dashboard visualizations.
+---
 
-**Command:**
+## Test Data
+
+Populate the database with mock rules and history for testing:
+
 ```bash
 docker compose exec chronomancers_archives python generate_data.py
 ```
 
 ---
 
-## 🛠 Tech Stack
-- **Backend**: Flask (Python 3.12)
-- **Database**: MySQL 8.0
-- **Frontend**: Jinja2, Bootstrap 5, Chart.js
-- **Reverse Proxy**: Nginx (HTTPS/TLS)
-- **Containerization**: Docker Compose
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Flask 3.0 (Python 3.12) |
+| Database | MySQL 8.4 |
+| Frontend | Bootstrap 5.3, Bootstrap Icons, Chart.js |
+| WSGI | Gunicorn |
+| Containerization | Docker Compose |

@@ -4,7 +4,8 @@ import json
 import atexit
 from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file
 import mysql.connector
-from datetime import datetime
+from datetime import datetime, timedelta
+import calendar
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
@@ -21,6 +22,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -115,8 +119,6 @@ def home():
     
     cursor = conn.cursor(dictionary=True)
     
-    from datetime import datetime, timedelta
-    
     default_start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     default_end = datetime.now().strftime('%Y-%m-%d')
     
@@ -128,7 +130,7 @@ def home():
         'end_date': end_date
     }
     
-    cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives")
+    cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     unique_rules_count = cursor.fetchone()['unique_total']
 
     cursor.execute("SELECT COUNT(*) as total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
@@ -145,10 +147,10 @@ def home():
         'elimination': action_counts.get('elimination', 0)
     }
     
-    cursor.execute("SELECT rule_name, COUNT(*) as count FROM archives WHERE created_at BETWEEN %s AND %s GROUP BY rule_name ORDER BY count DESC LIMIT 5", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+    cursor.execute("SELECT rule_name, COUNT(*) as count FROM archives GROUP BY rule_name ORDER BY count DESC LIMIT 5")
     top_rules = cursor.fetchall()
 
-    cursor.execute("SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' GROUP BY tuning_driver")
+    cursor.execute("SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' AND created_at BETWEEN %s AND %s GROUP BY tuning_driver", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     tuning_drivers = cursor.fetchall()
     
     driver_map = {
@@ -221,9 +223,9 @@ def history():
                c.version
         FROM archives a
         JOIN (
-            SELECT rule_name, MAX(id) AS max_id, COUNT(*) AS version
+            SELECT rule_name, company, environment, MAX(id) AS max_id, COUNT(*) AS version
             FROM archives
-            GROUP BY rule_name
+            GROUP BY rule_name, company, environment
         ) c ON a.id = c.max_id
         ORDER BY a.rule_name
     """)
@@ -250,7 +252,7 @@ def history():
         conditions.append("environment = %s")
         params.append(selected_environment)
     if selected_status:
-        conditions.append("rule_status = %s")
+        conditions.append("LOWER(rule_status) = LOWER(%s)")
         params.append(selected_status)
 
     if conditions:
@@ -276,9 +278,6 @@ def history():
                 'company': latest.get('company', 'N/A'),
                 'environment': latest.get('environment', 'N/A')
             }
-            
-            from datetime import timedelta
-            import calendar
             
             start_date = oldest['created_at'].replace(day=1)
             last_day = calendar.monthrange(latest['created_at'].year, latest['created_at'].month)[1]
@@ -470,9 +469,15 @@ def profile():
                 cursor.execute("UPDATE users SET full_name = %s WHERE id = %s", (full_name, session['user_id']))
                 
                 if file and file.filename != '' and allowed_file(file.filename):
-                    filename = secure_filename(f"user_{session['user_id']}_{file.filename}")
-                    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                    cursor.execute("UPDATE users SET profile_pic = %s WHERE id = %s", (filename, session['user_id']))
+                    file.seek(0, 2)
+                    file_size = file.tell()
+                    file.seek(0)
+                    if file_size > 5 * 1024 * 1024:
+                        flash('Profile picture must be under 5MB.', 'error')
+                    else:
+                        filename = secure_filename(f"user_{session['user_id']}_{file.filename}")
+                        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                        cursor.execute("UPDATE users SET profile_pic = %s WHERE id = %s", (filename, session['user_id']))
                 
                 conn.commit()
                 flash('Profile updated successfully!', 'success')
@@ -589,7 +594,7 @@ def users():
         return redirect(url_for('home'))
     
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users ORDER BY username")
+    cursor.execute("SELECT id, username, full_name, role, profile_pic FROM users ORDER BY username")
     users_data = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -694,22 +699,23 @@ def generate_backup_custom(filepath):
     conn = get_db_connection()
     if not conn:
         return False
-    
+
+    tmp_path = filepath + '.tmp'
     try:
         cursor = conn.cursor()
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             f.write(f"-- Chronomancers Archives Backup\n")
             f.write(f"-- Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            
+
             cursor.execute("SHOW TABLES")
             tables = [table[0] for table in cursor.fetchall()]
-            
+
             for table_name in tables:
                 cursor.execute(f"SHOW CREATE TABLE {table_name}")
                 create_table_sql = cursor.fetchone()[1]
                 f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n")
                 f.write(f"{create_table_sql};\n\n")
-                
+
                 cursor.execute(f"SELECT * FROM {table_name}")
                 rows = cursor.fetchall()
                 if rows:
@@ -728,33 +734,70 @@ def generate_backup_custom(filepath):
                         values_list.append(f"({', '.join(row_values)})")
                     f.write(",\n".join(values_list))
                     f.write(";\n\n")
-            
+
         cursor.close()
         conn.close()
+        os.replace(tmp_path, filepath)
         return True
     except Exception as e:
         print(f"Backup Error: {e}")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
         return False
+
+def _split_sql_statements(sql):
+    statements = []
+    current = []
+    in_string = False
+    string_char = None
+    i = 0
+    while i < len(sql):
+        c = sql[i]
+        if in_string:
+            if c == '\\':
+                current.append(c)
+                i += 1
+                if i < len(sql):
+                    current.append(sql[i])
+                    i += 1
+                continue
+            elif c == string_char:
+                in_string = False
+        else:
+            if c in ("'", '"', '`'):
+                in_string = True
+                string_char = c
+            elif c == ';':
+                stmt = ''.join(current).strip()
+                if stmt:
+                    statements.append(stmt)
+                current = []
+                i += 1
+                continue
+        current.append(c)
+        i += 1
+    stmt = ''.join(current).strip()
+    if stmt:
+        statements.append(stmt)
+    return statements
 
 def restore_backup_custom(filepath):
     conn = get_db_connection()
     if not conn:
         return False
-        
+
     try:
         cursor = conn.cursor()
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
-        
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+
         with open(filepath, 'r', encoding='utf-8') as f:
             sql_script = f.read()
-            
-        statements = sql_script.split(';')
-        for statement in statements:
-            if statement.strip():
-                cursor.execute(statement)
+
+        for statement in _split_sql_statements(sql_script):
+            cursor.execute(statement)
 
         conn.commit()
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
         cursor.close()
         conn.close()
         return True
@@ -799,6 +842,7 @@ def create_backup():
 @login_required
 @admin_required
 def restore_backup(filename):
+    filename = secure_filename(filename)
     filepath = os.path.join(BACKUP_FOLDER, filename)
     if not os.path.exists(filepath):
         flash("Archivo de respaldo no encontrado.", "error")
@@ -815,6 +859,7 @@ def restore_backup(filename):
 @login_required
 @admin_required
 def delete_backup(filename):
+    filename = secure_filename(filename)
     filepath = os.path.join(BACKUP_FOLDER, filename)
     if os.path.exists(filepath):
         os.remove(filepath)
@@ -827,6 +872,7 @@ def delete_backup(filename):
 @login_required
 @admin_required
 def download_backup(filename):
+    filename = secure_filename(filename)
     return send_file(os.path.join(BACKUP_FOLDER, filename), as_attachment=True)
 
 @app.route('/backup/upload', methods=['POST'])
@@ -889,10 +935,10 @@ def init_scheduler():
 
     config = load_schedule_config()
     if config.get('enabled'):
-        frequency = config.get('frequency') # 'daily', 'weekly'
-        time = config.get('time', '00:00')
+        frequency = config.get('frequency')
+        backup_time = config.get('time', '00:00')
         try:
-            hour, minute = time.split(':')
+            hour, minute = backup_time.split(':')
             
             trigger = None
             if frequency == 'daily':
@@ -934,12 +980,12 @@ def schedule_backup():
 
     enabled = request.form.get('enabled') == 'on'
     frequency = request.form.get('frequency')
-    time = request.form.get('time')
-    
+    backup_time = request.form.get('time')
+
     config = {
         'enabled': enabled,
         'frequency': frequency,
-        'time': time
+        'time': backup_time
     }
     
     save_schedule_config(config)
@@ -955,4 +1001,4 @@ def inject_schedule_config():
     return dict()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5001)

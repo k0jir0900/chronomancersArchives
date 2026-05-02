@@ -1,14 +1,19 @@
-# General
-.venv
+# Python
 *.pyc
+*.pyo
 __pycache__/
 
-# Ignore backup files
-backups
+# Environment
+.env
 
-# Nginx Logs
-nginx/logs/
+# Runtime
+backup.conf
+backups/
+static/uploads/
 
-# Setup
-certgen/certs/
+# Logs
+*.log
 
+# OS
+.DS_Store
+Thumbs.db
