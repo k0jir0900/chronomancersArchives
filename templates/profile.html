@@ -1,149 +1,154 @@
 {% extends 'base.html' %}
+{% block title %}My Profile – Chronomancers Archives{% endblock %}
+{% block page_title %}My Profile{% endblock %}
 
 {% block content %}
-<div class="form-container">
-    <h2 class="form-title">Mi Perfil</h2>
-
-    <div class="profile-header">
-        <div class="profile-pic-large" style="cursor: pointer; position: relative;"
-            onclick="document.getElementById('profile_pic').click();">
-            {% if user.profile_pic %}
-            <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile Picture">
-            {% else %}
-            <span>{{ user.username[0].upper() }}</span>
-            {% endif %}
-            <div class="profile-avatar-overlay">
-                <i class="fas fa-camera"></i>
-                <span>Cambiar imagen</span>
+<div class="row g-4">
+    <!-- Profile Card -->
+    <div class="col-lg-4">
+        <div class="card text-center">
+            <div class="card-body py-4">
+                <div class="ca-profile-pic mx-auto mb-3" onclick="document.getElementById('profile_pic').click();">
+                    {% if user.profile_pic %}
+                    <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile Picture"
+                        style="width:100%;height:100%;object-fit:cover;">
+                    {% else %}
+                    <div class="ca-avatar" style="width:100%;height:100%;font-size:2.5rem;">
+                        {{ user.username[0].upper() }}
+                    </div>
+                    {% endif %}
+                    <div class="profile-avatar-overlay">
+                        <i class="bi bi-camera fs-5"></i>
+                        <span>Change</span>
+                    </div>
+                </div>
+                <h5 class="mb-1">{{ user.full_name if user.full_name else user.username }}</h5>
+                <span class="badge bg-{{ 'primary' if user.role == 'Admin' else 'secondary' }}">
+                    {{ user.role | upper }}
+                </span>
+                <p class="text-secondary small mt-2 mb-0">@{{ user.username }}</p>
             </div>
-        </div>
-        <div class="profile-meta">
-            <h3>{{ user.full_name if user.full_name else user.username }}</h3>
-            <span class="badge badge-{{ user.role|lower }}">{{ user.role }}</span>
-            <div class="username-sub">@{{ user.username }}</div>
         </div>
     </div>
 
-    <!-- General Info Section -->
-    <form method="POST" action="/profile" enctype="multipart/form-data" class="profile-section">
-        <h3 class="section-title">Información General</h3>
-        <input type="hidden" name="action" value="update_info">
-
-        <div class="form-group">
-            <label for="username">Nombre de Usuario</label>
-            <input type="text" id="username" name="username" value="{{ user.username }}" readonly
-                class="input-readonly">
-            <small class="form-text text-muted">El nombre de usuario no puede ser modificado.</small>
-        </div>
-
-        <div class="form-group">
-            <label for="full_name">Nombre Completo</label>
-            <input type="text" id="full_name" name="full_name" value="{{ user.full_name if user.full_name else '' }}"
-                placeholder="Ingrese su nombre y apellido">
-        </div>
-
-        <div class="form-group">
-            <!-- Hidden file input -->
-            <input type="file" id="profile_pic" name="profile_pic" accept="image/png,image/jpeg" style="display: none;"
-                onchange="validateAndShowImageName(this)">
-            <small class="form-text text-muted" id="selected-image-name"></small>
-        </div>
-
-        <script>
-            function validateAndShowImageName(input) {
-                const file = input.files[0];
-                const nameDisplay = document.getElementById('selected-image-name');
-
-                if (!file) {
-                    nameDisplay.textContent = '';
-                    return;
-                }
-
-                // Validate file type
-                const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
-                if (!validTypes.includes(file.type)) {
-                    alert('Por favor selecciona una imagen en formato PNG o JPG.');
-                    input.value = '';
-                    nameDisplay.textContent = '';
-                    return;
-                }
-
-                // Validate file size (max 5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('La imagen no puede superar los 5MB.');
-                    input.value = '';
-                    nameDisplay.textContent = '';
-                    return;
-                }
-
-                nameDisplay.textContent = '📷 ' + file.name;
-            }
-        </script>
-
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Actualizar Información</button>
-        </div>
-    </form>
-
-    <hr class="divider">
-
-    <!-- Appearance Section -->
-    <form method="POST" action="/profile" class="profile-section">
-        <h3 class="section-title">Apariencia</h3>
-        <input type="hidden" name="action" value="update_theme">
-
-        <div class="form-group" style="display: flex; align-items: center; justify-content: space-between;">
-            <div>
-                <label style="margin-bottom: 0;">Tema de la Interfaz</label>
-                <small class="text-muted" style="margin-top: 5px;">Alternar entre modo oscuro y claro.</small>
+    <!-- Forms -->
+    <div class="col-lg-8">
+        <!-- General Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0 ca-section-title">General Information</h6>
             </div>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <i class="fas fa-moon" style="color: var(--text-color); opacity: 0.7;"></i>
-                <label class="switch">
-                    <input type="checkbox" onchange="toggleTheme(this)" {% if user.theme_preference=='light' %}checked{%
-                        endif %}>
-                    <span class="slider"></span>
-                </label>
-                <i class="fas fa-sun" style="color: var(--text-color); opacity: 0.7;"></i>
+            <div class="card-body">
+                <form method="POST" action="/profile" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="update_info">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control ca-input-readonly" value="{{ user.username }}" readonly>
+                            <div class="form-text">Cannot be changed.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" name="full_name"
+                                value="{{ user.full_name if user.full_name else '' }}"
+                                placeholder="Enter your full name">
+                        </div>
+                        <div class="col-12">
+                            <input type="file" id="profile_pic" name="profile_pic" accept="image/png,image/jpeg"
+                                style="display:none;" onchange="validateAndShowImageName(this)">
+                            <small id="selected-image-name" class="text-secondary"></small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">
+                        <i class="bi bi-floppy me-1"></i>Save Changes
+                    </button>
+                </form>
             </div>
         </div>
-        <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ user.theme_preference }}">
 
-        <script>
-            function toggleTheme(checkbox) {
-                const theme = checkbox.checked ? 'light' : 'dark';
-                document.getElementById('hiddenThemeInput').value = theme;
-                checkbox.closest('form').submit();
-            }
-        </script>
-    </form>
-
-    <hr class="divider">
-
-    <!-- Security Section -->
-    <form method="POST" action="/profile" class="profile-section">
-        <h3 class="section-title">Seguridad</h3>
-        <input type="hidden" name="action" value="change_password">
-
-        <div class="form-group">
-            <label for="current_password">Contraseña Actual</label>
-            <input type="password" id="current_password" name="current_password"
-                placeholder="Requerido para cambiar contraseña">
+        <!-- Appearance -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0 ca-section-title">Appearance</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/profile">
+                    <input type="hidden" name="action" value="update_theme">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="fw-500 mb-1">Interface Theme</p>
+                            <small class="text-secondary">Toggle between dark and light mode.</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-moon-fill text-secondary"></i>
+                            <label class="switch">
+                                <input type="checkbox" onchange="toggleTheme(this)"
+                                    {% if user.theme_preference == 'light' %}checked{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                            <i class="bi bi-sun-fill text-secondary"></i>
+                        </div>
+                    </div>
+                    <input type="hidden" name="theme" id="hiddenThemeInput" value="{{ user.theme_preference }}">
+                </form>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="new_password">Nueva Contraseña</label>
-            <input type="password" id="new_password" name="new_password" placeholder="Nueva contraseña">
+        <!-- Security -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0 ca-section-title">Security</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/profile">
+                    <input type="hidden" name="action" value="change_password">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Current Password</label>
+                            <input type="password" class="form-control" name="current_password"
+                                placeholder="Required to change password">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">New Password</label>
+                            <input type="password" class="form-control" name="new_password" placeholder="New password">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" name="confirm_password" placeholder="Repeat new password">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-warning mt-3">
+                        <i class="bi bi-key me-1"></i>Change Password
+                    </button>
+                </form>
+            </div>
         </div>
-
-        <div class="form-group">
-            <label for="confirm_password">Confirmar Nueva Contraseña</label>
-            <input type="password" id="confirm_password" name="confirm_password" placeholder="Repetir nueva contraseña">
-        </div>
-
-        <div class="form-actions">
-            <button type="submit" class="btn-primary btn-danger">Cambiar Contraseña</button>
-        </div>
-    </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function validateAndShowImageName(input) {
+        const file = input.files[0];
+        const nameDisplay = document.getElementById('selected-image-name');
+        if (!file) { nameDisplay.textContent = ''; return; }
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+        if (!validTypes.includes(file.type)) {
+            alert('Please select a PNG or JPG image.');
+            input.value = ''; nameDisplay.textContent = ''; return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image cannot exceed 5MB.');
+            input.value = ''; nameDisplay.textContent = ''; return;
+        }
+        nameDisplay.textContent = file.name;
+    }
+
+    function toggleTheme(checkbox) {
+        const theme = checkbox.checked ? 'light' : 'dark';
+        document.getElementById('hiddenThemeInput').value = theme;
+        checkbox.closest('form').submit();
+    }
+</script>
 {% endblock %}

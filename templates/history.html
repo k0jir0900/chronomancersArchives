@@ -1,436 +1,266 @@
 {% extends 'base.html' %}
+{% block title %}History – Chronomancers Archives{% endblock %}
+{% block page_title %}{% if is_active_search and summary %}CDU Detail – {{ summary.rule_name }}{% else %}Rules History{% endif %}{% endblock %}
 
 {% block content %}
-<div class="form-container">
-    <div class="page-header" style="text-align: center; margin-bottom: 30px;">
-        <!-- Search Form First -->
-        <div style="margin: 0 auto; display: flex; gap: 10px; margin-bottom: 20px;">
-            <div style="position: relative; flex-grow: 1;">
-                <input id="searchRule" list="rule-list" name="rule_name" placeholder="Rule Name..." class="search-input"
-                    value="{{ selected_rule if selected_rule else '' }}" autocomplete="off"
-                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                {% if selected_rule %}
-                <a href="/history"
-                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted-text); text-decoration: none;"><i
-                        class="fas fa-times"></i></a>
-                {% endif %}
-            </div>
-
-            <div style="position: relative; flex-grow: 1;">
-                <input id="searchCompany" list="company-list" name="company" placeholder="Company..." class="search-input"
-                    value="{{ selected_company if selected_company else '' }}" autocomplete="off"
-                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                {% if selected_company %}
-                <a href="/history"
-                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted-text); text-decoration: none;"><i
-                        class="fas fa-times"></i></a>
-                {% endif %}
-            </div>
-
-            <div style="position: relative; flex-grow: 1;">
-                <input id="searchEnv" list="env-list" name="environment" placeholder="Environment..." class="search-input"
-                    value="{{ selected_environment if selected_environment else '' }}" autocomplete="off"
-                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                {% if selected_environment %}
-                <a href="/history"
-                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted-text); text-decoration: none;"><i
-                        class="fas fa-times"></i></a>
-                {% endif %}
-            </div>
-
-            <div style="position: relative; flex-grow: 1;">
-                <input id="searchStatus" list="status-list" name="status" placeholder="Status..." class="search-input"
-                    value="{{ selected_status if selected_status else '' }}" autocomplete="off"
-                    style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                {% if selected_status %}
-                <a href="/history"
-                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted-text); text-decoration: none;"><i
-                        class="fas fa-times"></i></a>
-                {% endif %}
-            </div>
-
-            <datalist id="rule-list">
-                {% for rule in rules %}
-                <option value="{{ rule }}">
-                {% endfor %}
-            </datalist>
-            <datalist id="company-list">
-                {% for company in companies %}
-                <option value="{{ company }}">
-                {% endfor %}
-            </datalist>
-            <datalist id="env-list">
-                {% for environment in environments %}
-                <option value="{{ environment }}">
-                {% endfor %}
-            </datalist>
-            <datalist id="status-list">
-                <option value="Active">
-                <option value="Disabled">
-            </datalist>
-            
-            {% if is_active_search %}
-            <button type="button" class="btn-primary" onclick="exportToPDF()"
-                style="white-space: nowrap; background-color: #da3633; border-color: #da3633;"><i
-                    class="fas fa-file-pdf"></i> Export PDF</button>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-            <script>
-                function exportToPDF() {
-                    const reportContainer = document.getElementById('report-container');
-                    const ruleName = "{{ summary.rule_name|default('Custom_Report') }}";
-
-                    const opt = {
-                        margin: 0.5,
-                        filename: `Report_Rule_${ruleName}.pdf`,
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true },
-                        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-                        pagebreak: { mode: ['css', 'legacy'] }
-                    };
-
-                    reportContainer.style.display = 'block';
-
-                    html2pdf().from(reportContainer).set(opt).toPdf().get('pdf').then(function (pdf) {
-                        var totalPages = pdf.internal.getNumberOfPages();
-                        for (i = 1; i <= totalPages; i++) {
-                            pdf.setPage(i);
-                            pdf.setFontSize(10);
-                            pdf.setTextColor(100);
-                            // Page number bottom right
-                            pdf.text(`${i}`, pdf.internal.pageSize.getWidth() - 0.5, pdf.internal.pageSize.getHeight() - 0.5);
-                        }
-                    }).save().then(() => {
-                        reportContainer.style.display = 'none';
-                    });
-                }
-            </script>
-            {% endif %}
-        </div>
-
-        <!-- Title Second -->
-        {% if is_active_search %}
-        <h2 class="form-title" style="margin-bottom: 20px; font-size: 2rem; border-bottom: none;">
-            {{ summary.rule_name if summary else 'No results' }}
-        </h2>
-        {% else %}
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: none;">
-            <h2 class="form-title" style="margin-bottom: 0; font-size: 2rem; border-bottom: none;">Rules History</h2>
-            <a href="/diff" class="btn-primary" style="text-decoration: none;"><i class="fas fa-columns"></i> Compare Rules</a>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- PDF Report Template (Hidden) -->
-    {% if summary %}
-    <div id="report-container"
-        style="display: none; background-color: white; color: black; padding: 40px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-        <!-- Header -->
-        <div style="border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px; font-weight: bold; text-transform: uppercase; color: #000;">{{
-                summary.rule_name }}</h1>
-        </div>
-
-        <!-- Summary List (Compact Box Style) -->
-        <div style="margin-bottom: 30px; font-size: 12px;">
-            <div
-                style="background-color: #eee; padding: 6px 10px; font-weight: bold; color: #000; text-transform: uppercase; letter-spacing: 0.5px;">
-                General Summary</div>
-            <div style="display: flex; flex-wrap: wrap;">
-                <!-- Row 1: Creator | Creation Time -->
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Creator:</span>
-                    <span style="font-weight: bold;">{{ summary.creator }}</span>
-                </div>
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Creation:</span>
-                    <span style="font-weight: bold;">{{ summary.first_created.strftime('%Y-%m-%d') }}</span>
-                </div>
-
-                <!-- Row 2: Last Mod Name | Last Mod Time -->
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Last Mod By:</span>
-                    <span style="font-weight: bold;">{{ summary.last_modifier }}</span>
-                </div>
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Last Mod:</span>
-                    <span style="font-weight: bold;">{{ summary.last_modified.strftime('%Y-%m-%d') }}</span>
-                </div>
-
-                <!-- Row 3: Status | Event Count -->
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #000;">Status:</span>
-                    <span
-                        style="background-color: {{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }}; color: white; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: bold;">{{
-                        summary.current_status }}</span>
-                </div>
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Versions:</span>
-                    <span style="font-weight: bold;">{{ summary.total_events }}</span>
-                </div>
-                <!-- Row 4: Company | Environment -->
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #000;">Company:</span>
-                    <span style="font-weight: bold;">{{ summary.company }}</span>
-                </div>
-                <div
-                    style="width: 50%; padding: 6px 10px; box-sizing: border-box; display: flex; justify-content: space-between;">
-                    <span style="color: #000;">Environment:</span>
-                    <span style="font-weight: bold;">{{ summary.environment }}</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Timeline Details (Box Style) -->
-        <div>
-            <h3
-                style="margin: 0 0 20px 0; font-size: 16px; color: #000; border-bottom: 2px solid #000; padding-bottom: 5px; text-transform: uppercase;">
-                Event Details</h3>
-
-            {% for log in timeline|reverse %}
-            <div style="margin-bottom: 15px; border: 1px solid #ccc; page-break-inside: avoid;">
-                <!-- Header of Box -->
-                <div
-                    style="background-color: #f5f5f5; padding: 6px 10px; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-weight: bold; color: #000;">{{ log.created_at.strftime('%Y-%m-%d') }}</span>
-                        <span style="color: #000;">|</span>
-                        <span style="color: #000;">Modified by: <strong>{{ log.modified_by or 'System'
-                                }}</strong></span>
-                        {% if log.ticket %}
-                        <span style="color: #000;">|</span>
-                        <span style="color: #000;">Ticket: <strong>{{ log.ticket }}</strong></span>
-                        {% endif %}
-                        <span style="color: #000;">|</span>
-                        <span style="color: #000;">Reason: <strong>{{ log.tuning_driver.replace('_', ' ').title()
-                                }}</strong></span>
-                    </div>
-                    <div>
-                        <span
-                            style="background-color: {% if log.action_type == 'creation' %}#238636{% elif log.action_type == 'modification' %}#d29922{% else %}#da3633{% endif %}; color: white; padding: 2px 6px; font-size: 10px; border-radius: 3px; font-weight: bold; text-transform: uppercase;">
-                            {% if log.action_type == 'creation' %}Creation
-                            {% elif log.action_type == 'modification' %}Modification
-                            {% elif log.action_type == 'elimination' %}Elimination
-                            {% else %}{{ log.action_type }}{% endif %}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Content of Box -->
-                <div style="padding: 10px; display: flex; flex-direction: column; gap: 10px;">
-                    <!-- Details Row -->
-                    <div style="padding-bottom: 10px; border-bottom: 1px solid #eee;">
-                        <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">
-                            Detail</div>
-                        <div style="font-size: 12px; line-height: 1.3; color: #000;">{{ log.description }}</div>
-                    </div>
-
-                    <!-- Code Row -->
-                    <div
-                        style="background-color: #fdfdfd; padding: 8px; border-radius: 3px; border: 1px solid #eee;">
-                        <div style="font-size: 10px; text-transform: uppercase; color: #000; margin-bottom: 3px;">Rule
-                        </div>
-                        <pre
-                            style="margin: 0; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 8.5px; color: #000; line-height: 1.2;">{{ log.rule_content }}</pre>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+<!-- Header & Compare button -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>{% if is_active_search and summary %}<span class="text-secondary small">Rule detail</span>{% endif %}</div>
+    {% if not is_active_search %}
+    <a href="/diff" class="btn btn-outline-secondary btn-sm text-decoration-none">
+        <i class="bi bi-layout-split me-1"></i>Compare Rules
+    </a>
     {% endif %}
+</div>
 
+<!-- Search Inputs -->
+<div class="row g-2 mb-4">
+    <div class="col-md-3 col-sm-6 position-relative">
+        <input id="searchRule" list="rule-list" name="rule_name" placeholder="Rule Name..." class="form-control ca-search-input"
+            value="{{ selected_rule if selected_rule else '' }}" autocomplete="off">
+        {% if selected_rule %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
+    </div>
+    <div class="col-md-3 col-sm-6 position-relative">
+        <input id="searchCompany" list="company-list" name="company" placeholder="Company..." class="form-control ca-search-input"
+            value="{{ selected_company if selected_company else '' }}" autocomplete="off">
+        {% if selected_company %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
+    </div>
+    <div class="col-md-3 col-sm-6 position-relative">
+        <input id="searchEnv" list="env-list" name="environment" placeholder="Environment..." class="form-control ca-search-input"
+            value="{{ selected_environment if selected_environment else '' }}" autocomplete="off">
+        {% if selected_environment %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
+    </div>
+    <div class="col-md-2 col-sm-6 position-relative">
+        <input id="searchStatus" list="status-list" name="status" placeholder="Status..." class="form-control ca-search-input"
+            value="{{ selected_status if selected_status else '' }}" autocomplete="off">
+        {% if selected_status %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
+    </div>
     {% if is_active_search %}
-    {% if summary %}
-    <!-- Rule Histogram (Stacked Bars) -->
-    {% if chart_data %}
-    <div class="chart-container" style="margin-bottom: 40px; position: relative; height: 300px; width: 100%;">
-        <canvas id="ruleHistogram"></canvas>
+    <div class="col-md-1 col-sm-6">
+        <button type="button" class="btn btn-danger w-100 h-100" onclick="exportToPDF()">
+            <i class="bi bi-file-pdf me-1"></i>PDF
+        </button>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const isLight = document.body.classList.contains('light-theme');
-            const gridColor = isLight ? '#d0d7de' : '#30363d';
-            const textColor = isLight ? '#1f2328' : '#8b949e';
-
-            const ctx = document.getElementById('ruleHistogram').getContext('2d');
-            const chartData = {{ chart_data | tojson
-        }};
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: chartData.labels,
-                datasets: [
-                    {
-                        label: 'Creation',
-                        data: chartData.created,
-                        backgroundColor: '#238636',
-                        borderRadius: 4,
-                    },
-                    {
-                        label: 'Modification',
-                        data: chartData.modified,
-                        backgroundColor: '#d29922',
-                        borderRadius: 4,
-                    },
-                    {
-                        label: 'Elimination',
-                        data: chartData.deleted,
-                        backgroundColor: '#da3633',
-                        borderRadius: 4,
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        stacked: true,
-                        grid: { color: gridColor, tickColor: gridColor },
-                        ticks: { color: textColor }
-                    },
-                    y: {
-                        stacked: true,
-                        grid: { color: gridColor, tickColor: gridColor },
-                        ticks: { color: textColor, precision: 0 },
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: { color: textColor }
-                    },
-                    title: {
-                        display: true,
-                        text: 'Histogram',
-                        color: textColor,
-                        font: { size: 14 }
-                    }
-                }
-            }
-        });
-             });
-    </script>
     {% endif %}
+</div>
 
-    <!-- Rule Summary Box Order: Total Events, Status, Created, Last Modified, Company, Environment -->
-    <div class="rule-summary-grid">
-        <div class="summary-box">
-            <div class="summary-label">Company</div>
-            <div class="summary-value" style="font-size: 1.2rem;">{{ summary.company }}</div>
-        </div>
-        <div class="summary-box">
-            <div class="summary-label">Environment</div>
-            <div class="summary-value" style="font-size: 1.2rem;">{{ summary.environment }}</div>
-        </div>
-        <div class="summary-box">
-            <div class="summary-label">Versions</div>
-            <div class="summary-value">{{ summary.total_events }}</div>
-        </div>
-        <div class="summary-box">
-            <div class="summary-label">Current Status</div>
-            <div class="summary-value">
-                <span class="badge"
-                    style="background-color: {{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }}; color: white; border: none; font-size: 1rem;">
-                    {{ summary.current_status }}
-                </span>
-            </div>
-        </div>
-        <div class="summary-box">
-            <div class="summary-label">Creation Date</div>
-            <div class="summary-value">{{ summary.first_created.strftime('%Y-%m-%d') }}</div>
-        </div>
-        <div class="summary-box">
-            <div class="summary-label">Last Modification</div>
-            <div class="summary-value">{{ summary.last_modified.strftime('%Y-%m-%d') }}</div>
+<datalist id="rule-list">{% for rule in rules %}<option value="{{ rule }}">{% endfor %}</datalist>
+<datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
+<datalist id="env-list">{% for environment in environments %}<option value="{{ environment }}">{% endfor %}</datalist>
+<datalist id="status-list"><option value="Active"><option value="Disabled"></datalist>
+
+{% if is_active_search %}
+{% if summary %}
+
+<!-- PDF Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+    function exportToPDF() {
+        const reportContainer = document.getElementById('report-container');
+        const ruleName = "{{ summary.rule_name|default('Custom_Report') }}";
+        const opt = {
+            margin: 0.5,
+            filename: `Report_Rule_${ruleName}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] }
+        };
+        reportContainer.style.display = 'block';
+        html2pdf().from(reportContainer).set(opt).toPdf().get('pdf').then(function (pdf) {
+            var totalPages = pdf.internal.getNumberOfPages();
+            for (var i = 1; i <= totalPages; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(10);
+                pdf.setTextColor(100);
+                pdf.text(`${i}`, pdf.internal.pageSize.getWidth() - 0.5, pdf.internal.pageSize.getHeight() - 0.5);
+            }
+        }).save().then(() => { reportContainer.style.display = 'none'; });
+    }
+</script>
+
+<!-- Hidden PDF Report -->
+<div id="report-container" style="display:none;background:#fff;color:#000;padding:40px;font-family:'Segoe UI',sans-serif;">
+    <div style="border-bottom:3px solid #000;padding-bottom:20px;margin-bottom:30px;text-align:center;">
+        <h1 style="margin:0;font-size:28px;font-weight:bold;text-transform:uppercase;color:#000;">{{ summary.rule_name }}</h1>
+    </div>
+    <div style="margin-bottom:30px;font-size:12px;">
+        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">General Summary</div>
+        <div style="display:flex;flex-wrap:wrap;">
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creator:</span><strong>{{ summary.creator }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creation:</span><strong>{{ summary.first_created.strftime('%Y-%m-%d') }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod By:</span><strong>{{ summary.last_modifier }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod:</span><strong>{{ summary.last_modified.strftime('%Y-%m-%d') }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Status:</span><span style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold;">{{ summary.current_status }}</span></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Versions:</span><strong>{{ summary.total_events }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Company:</span><strong>{{ summary.company }}</strong></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
         </div>
     </div>
-
-    <!-- Timeline -->
-    <div class="timeline-container">
-        <h3
-            style="margin-bottom: 20px; color: var(--heading-color); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-            Historical Detail</h3>
-
-        {% for log in timeline %}
-        <div class="timeline-box"
-            style="border-left: 5px solid {% if log.action_type == 'creation' %}#238636{% elif log.action_type == 'modification' %}#d29922{% else %}#da3633{% endif %};">
-            <div class="timeline-header">
-                <span class="timeline-date"><i class="far fa-calendar-alt"></i> {{ log.created_at.strftime('%Y-%m-%d')
-                    }}</span>
-                <span class="timeline-modifier">
-                    <i class="fas fa-user-edit"></i> Modified by: <strong>{{ log.modified_by or 'System' }}</strong>
-                    {% if log.ticket %}
-                    <span style="margin-left: 10px; color: var(--muted-text);">| Ticket: <strong>{{ log.ticket
-                            }}</strong></span>
-                    {% endif %}
-                    <span style="margin-left: 10px; color: var(--muted-text);">| Reason: <strong>{{
-                            log.tuning_driver.replace('_', ' ').title() }}</strong></span>
-                </span>
-                <span class="badge badge-{{ log.action_type }}" style="margin-left: auto;">
-                    {% if log.action_type == 'creation' %}Creation
-                    {% elif log.action_type == 'modification' %}Modification
-                    {% elif log.action_type == 'elimination' %}Elimination
-                    {% else %}{{ log.action_type }}
-                    {% endif %}
-                </span>
-            </div>
-
-            <div class="timeline-content">
-                <div class="content-box">
-                    <h4><i class="fas fa-info-circle"></i> Detail</h4>
-                    <p>{{ log.description }}</p>
+    <div>
+        <h3 style="margin:0 0 20px;font-size:16px;color:#000;border-bottom:2px solid #000;padding-bottom:5px;text-transform:uppercase;">Event Details</h3>
+        {% for log in timeline|reverse %}
+        <div style="margin-bottom:15px;border:1px solid #ccc;page-break-inside:avoid;">
+            <div style="background:#f5f5f5;padding:6px 10px;border-bottom:1px solid #ccc;display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <strong>{{ log.created_at.strftime('%Y-%m-%d') }}</strong>
+                    <span>| Modified by: <strong>{{ log.modified_by or 'System' }}</strong></span>
+                    {% if log.ticket %}<span>| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
+                    <span>| Reason: <strong>{{ log.tuning_driver.replace('_',' ').title() }}</strong></span>
                 </div>
-                <div class="content-box code-box">
-                    <h4><i class="fas fa-code"></i> Rule</h4>
-                    <pre><code>{{ log.rule_content }}</code></pre>
+                <span style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.action_type|title }}</span>
+            </div>
+            <div style="padding:10px;display:flex;flex-direction:column;gap:10px;">
+                <div style="padding-bottom:10px;border-bottom:1px solid #eee;">
+                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Detail</div>
+                    <div style="font-size:12px;line-height:1.3;">{{ log.description }}</div>
+                </div>
+                <div style="background:#fdfdfd;padding:8px;border-radius:3px;border:1px solid #eee;">
+                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Rule</div>
+                    <pre style="margin:0;white-space:pre-wrap;font-family:'Courier New',monospace;font-size:8.5px;color:#000;line-height:1.2;">{{ log.rule_content }}</pre>
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
-    {% else %}
-    <div style="text-align: center; margin-top: 50px; color: #da3633;">
-        <i class="fas fa-exclamation-circle" style="font-size: 3rem; margin-bottom: 20px;"></i>
-        <p style="font-size: 1.2rem;">No records found for the given search.
-        </p>
+</div>
+
+<!-- Histogram -->
+{% if chart_data %}
+<div class="card mb-4" style="height:280px;position:relative;">
+    <div class="card-body" style="height:100%;">
+        <canvas id="ruleHistogram"></canvas>
     </div>
-    {% endif %}
-    {% elif not is_active_search and all_rules_metadata %}
-    <div style="margin-top: 20px;">
-        <div style="overflow-x: auto; background-color: var(--input-bg); border-radius: 8px; border: 1px solid var(--border-color);">
-            <table class="table" style="width: 100%; color: var(--text-color); border-collapse: collapse; text-align: left;">
-                <thead style="background-color: var(--card-bg); border-bottom: 2px solid var(--border-color);">
+</div>
+{% endif %}
+
+<!-- Summary Boxes -->
+<div class="row g-3 mb-4">
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Company</p>
+                <p class="fw-semibold mb-0">{{ summary.company }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Environment</p>
+                <p class="fw-semibold mb-0">{{ summary.environment }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Versions</p>
+                <p class="fw-semibold mb-0">{{ summary.total_events }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Status</p>
+                <span class="badge" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;font-size:.85rem;padding:4px 10px;">
+                    {{ summary.current_status }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Created</p>
+                <p class="fw-semibold mb-0">{{ summary.first_created.strftime('%Y-%m-%d') }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Last Modified</p>
+                <p class="fw-semibold mb-0">{{ summary.last_modified.strftime('%Y-%m-%d') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Timeline -->
+<h5 class="mb-3">Historical Detail</h5>
+<div class="ca-timeline-container">
+    {% for log in timeline %}
+    <div class="ca-timeline-box" style="border-left:5px solid {% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};">
+        <div class="ca-timeline-header">
+            <span class="fw-medium"><i class="bi bi-calendar3 me-1"></i>{{ log.created_at.strftime('%Y-%m-%d') }}</span>
+            <span class="text-secondary small">
+                <i class="bi bi-person-fill me-1"></i>Modified by: <strong style="color:#58a6ff;">{{ log.modified_by or 'System' }}</strong>
+                {% if log.ticket %}<span class="ms-2">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
+                <span class="ms-2">| Reason: <strong>{{ log.tuning_driver.replace('_',' ').title() }}</strong></span>
+            </span>
+            <span class="badge ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;">
+                {% if log.action_type == 'creation' %}Creation{% elif log.action_type == 'modification' %}Modification{% elif log.action_type == 'elimination' %}Elimination{% else %}{{ log.action_type }}{% endif %}
+            </span>
+        </div>
+        <div class="ca-timeline-content">
+            <div class="ca-content-box">
+                <h6 class="ca-content-label"><i class="bi bi-info-circle me-1"></i>Detail</h6>
+                <p class="mb-0 small">{{ log.description }}</p>
+            </div>
+            <div class="ca-content-box ca-code-box">
+                <h6 class="ca-content-label"><i class="bi bi-code-slash me-1"></i>Rule</h6>
+                <pre><code>{{ log.rule_content }}</code></pre>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center mt-5 text-danger">
+    <i class="bi bi-exclamation-circle-fill" style="font-size:3rem;"></i>
+    <p class="mt-3 fs-5">No records found for the given search.</p>
+</div>
+{% endif %}
+
+{% elif not is_active_search and all_rules_metadata %}
+<!-- Rules Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="rulesTable">
+                <thead>
                     <tr>
-                        <th style="padding: 15px;">Rule Name</th>
-                        <th style="padding: 15px;">Company</th>
-                        <th style="padding: 15px;">Environment</th>
-                        <th style="padding: 15px;">Status</th>
-                        <th style="padding: 15px; text-align: right;">Action</th>
+                        <th>Rule Name</th>
+                        <th>Company</th>
+                        <th>Environment</th>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th class="text-end">Action</th>
                     </tr>
                 </thead>
                 <tbody id="rulesTbody">
                     {% for rule_meta in all_rules_metadata %}
-                    <tr class="rule-row" data-rule="{{ rule_meta.rule_name|lower }}" data-company="{{ rule_meta.company|lower }}" data-env="{{ rule_meta.environment|lower }}" data-status="{{ rule_meta.rule_status|lower }}" style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 15px;">{{ rule_meta.rule_name }}</td>
-                        <td style="padding: 15px;"><i class="fas fa-building" style="margin-right: 5px; color: var(--muted-text);"></i> {{ rule_meta.company }}</td>
-                        <td style="padding: 15px;"><i class="fas fa-server" style="margin-right: 5px; color: var(--muted-text);"></i> {{ rule_meta.environment }}</td>
-                        <td style="padding: 15px;">
-                            <span style="color: {{ '#238636' if rule_meta.rule_status|lower == 'active' else '#da3633' }}; font-weight: bold; background: rgba(0,0,0,0.1); padding: 4px 8px; border-radius: 4px;">
+                    <tr class="rule-row"
+                        data-rule="{{ rule_meta.rule_name|lower }}"
+                        data-company="{{ rule_meta.company|lower }}"
+                        data-env="{{ rule_meta.environment|lower }}"
+                        data-status="{{ rule_meta.rule_status|lower }}">
+                        <td class="fw-medium">{{ rule_meta.rule_name }}</td>
+                        <td class="text-secondary"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
+                        <td class="text-secondary"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
+                        <td class="text-secondary">{{ rule_meta.version }}</td>
+                        <td>
+                            <span class="badge" style="background:{{ '#1c7a37' if rule_meta.rule_status|lower == 'active' else '#b02a29' }};color:#fff;padding:4px 10px;">
                                 {{ rule_meta.rule_status | title }}
                             </span>
                         </td>
-                        <td style="padding: 15px; text-align: right;">
-                            <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}" class="btn-primary" style="text-decoration: none; padding: 6px 12px; font-size: 0.85rem; border-radius: 4px;">
-                                <i class="fas fa-external-link-alt"></i> Detail
+                        <td class="text-end">
+                            <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}"
+                                class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Detail
                             </a>
                         </td>
                     </tr>
@@ -438,93 +268,100 @@
                 </tbody>
             </table>
         </div>
-        <div id="paginationControls" style="display: flex; justify-content: flex-end; gap: 5px; margin-top: 15px;"></div>
+        <div id="paginationControls" class="d-flex justify-content-end gap-2 p-3"></div>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const ROWS_PER_PAGE = 10;
-            let currentPage = 1;
-            let filteredRows = [];
-            const allRows = Array.from(document.querySelectorAll('.rule-row'));
-            
-            const searchRuleInput = document.getElementById('searchRule');
-            const searchCompanyInput = document.getElementById('searchCompany');
-            const searchEnvInput = document.getElementById('searchEnv');
-            const searchStatusInput = document.getElementById('searchStatus');
-        
-            function applyFilters() {
-                if(!searchRuleInput) return; // Means timeline is rendered instead
+</div>
+{% endif %}
+{% endblock %}
 
-                const ruleVal = searchRuleInput.value.toLowerCase();
-                const compVal = searchCompanyInput.value.toLowerCase();
-                const envVal = searchEnvInput.value.toLowerCase();
-                const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
-        
-                filteredRows = allRows.filter(row => {
-                    const elStatus = (row.dataset.status || '').toLowerCase();
-                    return row.dataset.rule.includes(ruleVal) && 
-                           row.dataset.company.includes(compVal) && 
-                           row.dataset.env.includes(envVal) &&
-                           elStatus.includes(statusVal);
-                });
-        
-                currentPage = 1;
-                renderTable();
-            }
-        
-            function renderTable() {
-                allRows.forEach(row => row.style.display = 'none');
-                
-                const start = (currentPage - 1) * ROWS_PER_PAGE;
-                const end = start + ROWS_PER_PAGE;
-                
-                filteredRows.slice(start, end).forEach(row => {
-                    row.style.display = 'table-row';
-                });
-                
-                renderPagination();
-            }
-        
-            function renderPagination() {
-                const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
-                const controls = document.getElementById('paginationControls');
-                if(!controls) return;
-                controls.innerHTML = '';
-                
-                for(let i = 1; i <= totalPages; i++) {
-                    const btn = document.createElement('button');
-                    btn.innerText = i;
-                    btn.className = i === currentPage ? 'btn-primary' : 'btn-secondary';
-                    btn.style.padding = '5px 12px';
-                    btn.style.border = 'none';
-                    btn.style.borderRadius = '4px';
-                    btn.style.cursor = 'pointer';
-                    if (i !== currentPage) {
-                        btn.style.backgroundColor = 'var(--card-bg)';
-                        btn.style.color = 'var(--text-color)';
-                        btn.style.border = '1px solid var(--border-color)';
-                    }
-                    btn.onclick = () => { currentPage = i; renderTable(); };
-                    controls.appendChild(btn);
+{% block scripts %}
+{% if chart_data and is_active_search and summary %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const gridColor = '#30363d';
+        const textColor = '#8b949e';
+        const ctx = document.getElementById('ruleHistogram').getContext('2d');
+        const chartData = {{ chart_data | tojson }};
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [
+                    { label: 'Creation',     data: chartData.created,   backgroundColor: '#238636', borderRadius: 4 },
+                    { label: 'Modification', data: chartData.modified,  backgroundColor: '#d29922', borderRadius: 4 },
+                    { label: 'Elimination',  data: chartData.deleted,   backgroundColor: '#da3633', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor } },
+                    y: { stacked: true, grid: { color: gridColor }, ticks: { color: textColor, precision: 0 }, beginAtZero: true }
+                },
+                plugins: {
+                    legend: { labels: { color: textColor } },
+                    title: { display: true, text: 'Histogram', color: textColor, font: { size: 13 } }
                 }
-
-                if (totalPages === 0) {
-                    controls.innerHTML = '<span style="color: var(--muted-text);">No matches found.</span>';
-                }
-            }
-        
-            if(searchRuleInput) {
-                [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput].forEach(inp => {
-                    if (inp) {
-                        inp.addEventListener('input', applyFilters);
-                        inp.addEventListener('change', applyFilters);
-                    }
-                });
-                applyFilters();
             }
         });
-    </script>
-    {% endif %}
+    });
+</script>
+{% endif %}
 
-</div>
+{% if not is_active_search and all_rules_metadata %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const ROWS_PER_PAGE = 10;
+        let currentPage = 1;
+        let filteredRows = [];
+        const allRows = Array.from(document.querySelectorAll('.rule-row'));
+        const searchRuleInput = document.getElementById('searchRule');
+        const searchCompanyInput = document.getElementById('searchCompany');
+        const searchEnvInput = document.getElementById('searchEnv');
+        const searchStatusInput = document.getElementById('searchStatus');
+
+        function applyFilters() {
+            const ruleVal = searchRuleInput.value.toLowerCase();
+            const compVal = searchCompanyInput.value.toLowerCase();
+            const envVal = searchEnvInput.value.toLowerCase();
+            const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
+            filteredRows = allRows.filter(row =>
+                row.dataset.rule.includes(ruleVal) &&
+                row.dataset.company.includes(compVal) &&
+                row.dataset.env.includes(envVal) &&
+                (row.dataset.status || '').includes(statusVal)
+            );
+            currentPage = 1;
+            renderTable();
+        }
+
+        function renderTable() {
+            allRows.forEach(row => row.style.display = 'none');
+            filteredRows.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE).forEach(row => row.style.display = '');
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+            const controls = document.getElementById('paginationControls');
+            if (!controls) return;
+            controls.innerHTML = '';
+            for (let i = 1; i <= totalPages; i++) {
+                const btn = document.createElement('button');
+                btn.innerText = i;
+                btn.className = 'btn btn-sm ' + (i === currentPage ? 'btn-primary' : 'btn-outline-secondary');
+                btn.onclick = () => { currentPage = i; renderTable(); };
+                controls.appendChild(btn);
+            }
+            if (totalPages === 0) controls.innerHTML = '<span class="text-secondary small">No matches found.</span>';
+        }
+
+        [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput].forEach(inp => {
+            if (inp) { inp.addEventListener('input', applyFilters); inp.addEventListener('change', applyFilters); }
+        });
+        applyFilters();
+    });
+</script>
+{% endif %}
 {% endblock %}

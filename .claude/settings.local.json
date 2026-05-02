@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -s https://raw.githubusercontent.com/PlainAdmin/plain-free-bootstrap-admin-template/main/index.html)",
+      "Bash(curl *)",
+      "Bash(Select-Object FullName)"
+    ]
+  }
+}

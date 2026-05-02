@@ -1,141 +1,125 @@
 {% extends 'base.html' %}
+{% block title %}Compare Rules – Chronomancers Archives{% endblock %}
+{% block page_title %}Compare Rule Versions{% endblock %}
 
-{% block content %}
-<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+{% block head %}
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+{% endblock %}
 
-<div class="form-container">
-    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-        <h2 class="form-title" style="margin-bottom: 0; border-bottom: none;"><i class="fas fa-columns"></i> Compare Rule Versions</h2>
-        <a href="/history" class="btn-secondary"><i class="fas fa-arrow-left"></i> Back to History</a>
-    </div>
-    
-    <form method="GET" action="/diff" style="margin-bottom: 30px;">
-        <div style="margin-bottom: 20px;">
-            <label style="color: var(--heading-color); font-weight: 600; display: block; margin-bottom: 8px;">Select Rule</label>
-            <div style="display: flex; gap: 15px;">
-                <select name="rule_name" class="search-input" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);" onchange="this.form.submit()">
-                    <option value="">Select a rule to compare its versions...</option>
-                    {% for rule in all_rules %}
-                    <option value="{{ rule }}" {% if rule == selected_rule %}selected{% endif %}>{{ rule }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-        
-        {% if selected_rule and versions|length > 0 %}
-        <div style="display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 250px;">
-                <label style="color: var(--heading-color); font-weight: 600;">Old Version (Base)</label>
-                <select name="v1" class="search-input" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                    {% for v in versions %}
-                    <option value="{{ v.id }}" {% if v.id|string == v1_id|string %}selected{% endif %}>
-                        {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div style="flex: 1; min-width: 250px;">
-                <label style="color: var(--heading-color); font-weight: 600;">New Version (Comparison)</label>
-                <select name="v2" class="search-input" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color);">
-                    {% for v in versions %}
-                    <option value="{{ v.id }}" {% if v.id|string == v2_id|string or (loop.first and not v2_id) %}selected{% endif %}>
-                        {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <button type="submit" class="btn-primary" style="padding: 10px 20px; height: 42px;"><i class="fas fa-exchange-alt"></i> Compare Versions</button>
-            </div>
-        </div>
-        {% elif selected_rule %}
-        <div style="color: #ff7b72;">Not enough versions found for this rule.</div>
-        {% endif %}
-    </form>
-
-    {% if v1_id and v2_id %}
-    <div id="diff-target" style="margin-top: 20px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);"></div>
-    
-    <style>
-        .d2h-file-header { display: none; }
-        .d2h-code-line { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.5; }
-        .d2h-file-side-diff { width: 50%; border-color: var(--border-color) !important; background: transparent !important; }
-        
-        /* Dark Theme Overrides */
-        .d2h-file-wrapper { border: none !important; margin: 0 !important; background: var(--sidebar-bg) !important; padding: 1.5em 0 !important; }
-        .d2h-code-line-ctn { color: var(--text-color) !important; }
-        .d2h-code-line-prefix { color: var(--muted-text) !important; background-color: var(--input-bg) !important; border-color: var(--border-color) !important; }
-        .d2h-code-linenumber, .d2h-code-side-linenumber { color: var(--muted-text) !important; background-color: var(--input-bg) !important; border-color: var(--border-color) !important; }
-        .d2h-emptyplaceholder, .d2h-code-side-emptyplaceholder { background-color: var(--sidebar-bg) !important; border-color: var(--border-color) !important; }
-        .d2h-wrapper, .d2h-diff-table, .d2h-diff-tbody { background: transparent !important; }
-        
-        /* Add spacing between code and horizontal scrollbar */
-        .d2h-code-wrapper { background: transparent !important; margin-bottom: 15px !important; }
-        
-        /* Dark Theme Scrollbars */
-        #diff-target *::-webkit-scrollbar { height: 12px; width: 12px; background: var(--sidebar-bg); }
-        #diff-target *::-webkit-scrollbar-track { background: var(--sidebar-bg); border-radius: 6px; }
-        #diff-target *::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 6px; border: 3px solid var(--sidebar-bg); }
-        
-        /* Line backgrounds */
-        .d2h-ins { background-color: rgba(35, 134, 54, 0.2) !important; }
-        .d2h-del { background-color: rgba(218, 54, 51, 0.2) !important; }
-        .d2h-ins .d2h-code-line-prefix { background-color: rgba(35, 134, 54, 0.3) !important; }
-        .d2h-del .d2h-code-line-prefix { background-color: rgba(218, 54, 51, 0.3) !important; }
-        
-        /* Word highlights */
-        .d2h-ins .d2h-code-line-ctn ins { background-color: rgba(35, 134, 54, 0.5) !important; color: #fff !important; }
-        .d2h-del .d2h-code-line-ctn del { background-color: rgba(218, 54, 51, 0.5) !important; color: #fff !important; }
-        
-        .d2h-info { background-color: var(--input-bg) !important; color: var(--muted-text) !important; border-color: var(--border-color) !important; }
-        
-        /* Highlight.js Dark Theme overrides */
-        .hljs-keyword, .hljs-literal, .hljs-symbol, .hljs-name { color: #ff7b72 !important; }
-        .hljs-string { color: #a5d6ff !important; }
-        .hljs-number { color: #79c0ff !important; }
-        .hljs-comment { color: #8b949e !important; }
-        .hljs-title, .hljs-built_in { color: #d2a8ff !important; }
-    </style>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var rule1Content = {{ rule1_content_json | safe }};
-            var rule2Content = {{ rule2_content_json | safe }};
-            
-            var diffString = Diff.createTwoFilesPatch(
-                "{{ selected_rule }}", 
-                "{{ selected_rule }}", 
-                rule1Content, 
-                rule2Content,
-                "{{ v1_label }}",
-                "{{ v2_label }}"
-            );
-            
-            var targetElement = document.getElementById('diff-target');
-            var configuration = { 
-                drawFileList: false, 
-                matching: 'lines', 
-                outputFormat: 'side-by-side',
-                renderNothingWhenEmpty: false
-            };
-            
-            var diff2htmlUi = new Diff2HtmlUI(targetElement, diffString, configuration);
-            diff2htmlUi.draw();
-            diff2htmlUi.highlightCode();
-        });
-    </script>
-    {% elif not selected_rule %}
-    <div style="text-align: center; margin-top: 50px; color: var(--muted-text);">
-        <i class="fas fa-columns" style="font-size: 3rem; margin-bottom: 20px;"></i>
-        <p style="font-size: 1.2rem;">Select a rule to compare its historical versions.</p>
-    </div>
-    {% else %}
-    <div style="text-align: center; margin-top: 50px; color: var(--muted-text);">
-        <i class="fas fa-info-circle" style="font-size: 3rem; margin-bottom: 20px;"></i>
-        <p style="font-size: 1.2rem;">Select two versions and click Compare.</p>
-    </div>
-    {% endif %}
+{% block content %}
+<div class="d-flex justify-content-end mb-3">
+    <a href="/history" class="btn btn-outline-secondary btn-sm text-decoration-none">
+        <i class="bi bi-arrow-left me-1"></i>Back to History
+    </a>
 </div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="/diff">
+            <div class="row g-3 align-items-end">
+                <div class="col-12">
+                    <label class="form-label fw-medium">Select Rule</label>
+                    <select class="form-select" name="rule_name" onchange="this.form.submit()">
+                        <option value="">Select a rule to compare its versions...</option>
+                        {% for rule in all_rules %}
+                        <option value="{{ rule }}" {% if rule == selected_rule %}selected{% endif %}>{{ rule }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if selected_rule and versions|length > 0 %}
+                <div class="col-md-5">
+                    <label class="form-label fw-medium">Old Version (Base)</label>
+                    <select class="form-select" name="v1">
+                        {% for v in versions %}
+                        <option value="{{ v.id }}" {% if v.id|string == v1_id|string %}selected{% endif %}>
+                            {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-medium">New Version (Comparison)</label>
+                    <select class="form-select" name="v2">
+                        {% for v in versions %}
+                        <option value="{{ v.id }}" {% if v.id|string == v2_id|string or (loop.first and not v2_id) %}selected{% endif %}>
+                            {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-arrow-left-right me-1"></i>Compare
+                    </button>
+                </div>
+                {% elif selected_rule %}
+                <div class="col-12">
+                    <p class="text-danger mb-0">Not enough versions found for this rule.</p>
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if v1_id and v2_id %}
+<div class="card p-0 overflow-hidden">
+    <div id="diff-target"></div>
+</div>
+
+<style>
+    .d2h-file-header { display: none; }
+    .d2h-code-line { font-family: 'Consolas','Monaco',monospace; font-size: 13px; line-height: 1.5; }
+    .d2h-file-side-diff { width: 50%; }
+
+    .d2h-file-wrapper { background: #161b22 !important; }
+    .d2h-code-line-ctn { color: #c9d1d9 !important; }
+    .d2h-code-line-prefix { color: #8b949e !important; background-color: #0d1117 !important; border-color: #30363d !important; }
+    .d2h-code-linenumber, .d2h-code-side-linenumber { color: #8b949e !important; background-color: #0d1117 !important; border-color: #30363d !important; }
+    .d2h-emptyplaceholder, .d2h-code-side-emptyplaceholder { background-color: #161b22 !important; border-color: #30363d !important; }
+    .d2h-wrapper, .d2h-diff-table, .d2h-diff-tbody { background: transparent !important; }
+    .d2h-info { background-color: #0d1117 !important; color: #8b949e !important; border-color: #30363d !important; }
+    #diff-target *::-webkit-scrollbar { height: 12px; background: #161b22; }
+    #diff-target *::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 6px; border: 3px solid #161b22; }
+
+    .d2h-ins { background-color: rgba(35,134,54,.2) !important; }
+    .d2h-del { background-color: rgba(218,54,51,.2) !important; }
+    .d2h-ins .d2h-code-line-prefix { background-color: rgba(35,134,54,.3) !important; }
+    .d2h-del .d2h-code-line-prefix { background-color: rgba(218,54,51,.3) !important; }
+    .d2h-ins .d2h-code-line-ctn ins { background-color: rgba(35,134,54,.5) !important; color: #fff !important; }
+    .d2h-del .d2h-code-line-ctn del { background-color: rgba(218,54,51,.5) !important; color: #fff !important; }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var rule1Content = {{ rule1_content_json | safe }};
+        var rule2Content = {{ rule2_content_json | safe }};
+        var diffString = Diff.createTwoFilesPatch(
+            "{{ selected_rule }}", "{{ selected_rule }}",
+            rule1Content, rule2Content,
+            "{{ v1_label }}", "{{ v2_label }}"
+        );
+        var targetElement = document.getElementById('diff-target');
+        var diff2htmlUi = new Diff2HtmlUI(targetElement, diffString, {
+            drawFileList: false, matching: 'lines', outputFormat: 'side-by-side', renderNothingWhenEmpty: false
+        });
+        diff2htmlUi.draw();
+        diff2htmlUi.highlightCode();
+    });
+</script>
+
+{% elif not selected_rule %}
+<div class="text-center mt-5 text-secondary">
+    <i class="bi bi-layout-split" style="font-size:3rem;"></i>
+    <p class="mt-3 fs-5">Select a rule to compare its historical versions.</p>
+</div>
+{% else %}
+<div class="text-center mt-5 text-secondary">
+    <i class="bi bi-info-circle" style="font-size:3rem;"></i>
+    <p class="mt-3 fs-5">Select two versions and click Compare.</p>
+</div>
+{% endif %}
 {% endblock %}

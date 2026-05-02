@@ -217,12 +217,15 @@ def history():
     environments = [row['environment'] for row in cursor.fetchall()]
 
     cursor.execute("""
-        SELECT rule_name, company, environment, rule_status 
-        FROM archives 
-        WHERE id IN (
-            SELECT MAX(id) FROM archives GROUP BY rule_name
-        )
-        ORDER BY rule_name
+        SELECT a.rule_name, a.company, a.environment, a.rule_status,
+               c.version
+        FROM archives a
+        JOIN (
+            SELECT rule_name, MAX(id) AS max_id, COUNT(*) AS version
+            FROM archives
+            GROUP BY rule_name
+        ) c ON a.id = c.max_id
+        ORDER BY a.rule_name
     """)
     all_rules_metadata = cursor.fetchall()
 

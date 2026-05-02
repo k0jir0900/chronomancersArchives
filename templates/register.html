@@ -1,76 +1,171 @@
 {% extends 'base.html' %}
+{% block title %}CDU Registration – Chronomancers Archives{% endblock %}
+{% block page_title %}CDU Registration{% endblock %}
 
 {% block content %}
-<div class="form-container">
-    <h2 class="form-title">Register CDU Log</h2>
-    <form method="POST" action="/register">
-        <div class="form-group">
-            <label for="rule_name">Rule Name <span class="required">*</span></label>
-            <input type="text" id="rule_name" name="rule_name" required placeholder="Ex: Block port 8080">
-        </div>
+<div class="ca-form-page">
+    <div class="ca-form-card">
 
-        <div class="form-group">
-            <label for="company">Company <span class="required">*</span></label>
-            <input type="text" id="company" name="company" required placeholder="Ex: Acme Corp">
-        </div>
+        <form method="POST" action="/register" class="ca-form-body">
 
-        <div class="form-group">
-            <label for="environment">Environment <span class="required">*</span></label>
-            <select id="environment" name="environment" required>
-                <option value="" disabled selected>Select an option</option>
-                <option value="IT">IT</option>
-                <option value="OT">OT</option>
-                <option value="Both">Both</option>
-            </select>
-        </div>
+            <!-- Rule identification -->
+            <div class="ca-form-section">
+                <div class="ca-form-field">
+                    <label class="ca-label">Rule Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control ca-input" name="rule_name" required
+                        placeholder="Ex: Block port 8080">
+                </div>
 
-        <div class="form-group">
-            <label for="action_type">Action Type <span class="required">*</span></label>
-            <select id="action_type" name="action_type" required>
-                <option value="" disabled selected>Select an option</option>
-                <option value="creation">Creation</option>
-                <option value="modification">Modification</option>
-                <option value="elimination">Elimination</option>
-            </select>
-        </div>
+                <div class="ca-form-field">
+                    <label class="ca-label">Company <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control ca-input" name="company" required
+                        placeholder="Ex: Acme Corp">
+                </div>
+            </div>
 
-        <div class="form-group">
-            <label for="rule_status">Rule Status <span class="required">*</span></label>
-            <select id="rule_status" name="rule_status" required>
-                <option value="active">Active</option>
-                <option value="disabled">Disabled</option>
-            </select>
-        </div>
+            <div class="ca-form-divider"></div>
 
-        <div class="form-group">
-            <label for="tuning_driver">Tuning Driver <span class="required">*</span></label>
-            <select id="tuning_driver" name="tuning_driver" required>
-                <option value="maintenance">Maintenance</option>
-                <option value="fp_correction">False Positive Correction</option>
-                <option value="hardening">Hardening</option>
-                <option value="new_use_case">New Use Case</option>
-            </select>
-        </div>
+            <!-- Classification -->
+            <div class="ca-form-section">
+                <div class="ca-form-field">
+                    <label class="ca-label">Environment <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="environment" required>
+                        <option value="" disabled selected>Select an option</option>
+                        <option value="IT">IT</option>
+                        <option value="OT">OT</option>
+                        <option value="Both">Both</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-            <label for="ticket">Associated Ticket</label>
-            <input type="text" id="ticket" name="ticket" placeholder="Ex: TKT-12345">
-        </div>
+                <div class="ca-form-field">
+                    <label class="ca-label">Action Type <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="action_type" required>
+                        <option value="" disabled selected>Select an option</option>
+                        <option value="creation">Creation</option>
+                        <option value="modification">Modification</option>
+                        <option value="elimination">Elimination</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-            <label for="description">Description <span class="required">*</span></label>
-            <textarea id="description" name="description" rows="3" required placeholder="Action detail..."></textarea>
-        </div>
+                <div class="ca-form-field">
+                    <label class="ca-label">Rule Status <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="rule_status" required>
+                        <option value="active">Active</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-            <label for="rule_content">Rule <span class="required">*</span></label>
-            <textarea id="rule_content" name="rule_content" rows="4" required class="code-font"
-                placeholder="Rule content..."></textarea>
-        </div>
+                <div class="ca-form-field">
+                    <label class="ca-label">Tuning Driver <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="tuning_driver" required>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="fp_correction">False Positive Correction</option>
+                        <option value="hardening">Hardening</option>
+                        <option value="new_use_case">New Use Case</option>
+                    </select>
+                </div>
+            </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn-primary">Register</button>
-        </div>
-    </form>
+            <div class="ca-form-divider"></div>
+
+            <!-- Content -->
+            <div class="ca-form-section">
+                <div class="ca-form-field">
+                    <label class="ca-label">Associated Ticket <span class="ca-hint">— Optional</span></label>
+                    <input type="text" class="form-control ca-input" name="ticket"
+                        placeholder="Ex: TKT-12345">
+                </div>
+
+                <div class="ca-form-field">
+                    <label class="ca-label">Description <span class="text-danger">*</span></label>
+                    <textarea class="form-control ca-input" name="description" rows="4" required
+                        placeholder="Describe the action and its reason..."></textarea>
+                </div>
+
+                <div class="ca-form-field">
+                    <label class="ca-label">Rule Content <span class="text-danger">*</span></label>
+                    <textarea class="form-control ca-input ca-code-font" name="rule_content" rows="8" required
+                        placeholder="Paste the full rule content here (YAML, Sigma, etc.)..."></textarea>
+                </div>
+            </div>
+
+            <div class="ca-form-footer">
+                <button type="submit" class="btn btn-primary ca-submit-btn">
+                    <i class="bi bi-floppy me-2"></i>Register Entry
+                </button>
+            </div>
+
+        </form>
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.ca-form-page {
+    display: block;
+}
+.ca-form-card {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    overflow: hidden;
+}
+.ca-form-header {
+    padding: 2rem 2rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.ca-form-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: .25rem;
+}
+.ca-form-subtitle {
+    font-size: .875rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+.ca-form-body {
+    padding: 0 2rem 2rem;
+}
+.ca-form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem 0 .5rem;
+}
+.ca-form-divider {
+    border-top: 1px solid var(--border);
+    margin: .25rem 0;
+}
+.ca-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: .375rem;
+}
+.ca-label {
+    font-size: .875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.ca-input {
+    font-size: .9rem;
+}
+.ca-hint {
+    font-size: .775rem;
+    color: var(--text-muted);
+}
+.ca-form-footer {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    margin-top: 1.25rem;
+    display: flex;
+    justify-content: flex-end;
+}
+.ca-submit-btn {
+    padding: .6rem 1.75rem;
+    font-weight: 600;
+}
+</style>
 {% endblock %}
