@@ -89,6 +89,28 @@
                 </div>
             </div>
 
+            <div class="ca-form-divider"></div>
+
+            <!-- MITRE ATT&CK -->
+            <div class="ca-form-section">
+                <div class="ca-form-field">
+                    <label class="ca-label">MITRE ATT&CK <span class="ca-hint">— Optional</span></label>
+                    <div class="mitre-add-row">
+                        <select id="mitre-technique" class="form-select ca-input mitre-select">
+                            <option value="">Loading techniques...</option>
+                        </select>
+                        <select id="mitre-subtechnique" class="form-select ca-input mitre-select" disabled>
+                            <option value="">Select technique first</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-secondary mitre-add-btn" id="mitre-add-btn" disabled>
+                            <i class="bi bi-plus-lg"></i> Add
+                        </button>
+                    </div>
+                    <div id="mitre-tags" class="mitre-tags"></div>
+                    <input type="hidden" name="mitre_json" id="mitre-json-input" value="">
+                </div>
+            </div>
+
             <div class="ca-form-footer">
                 <button type="submit" class="btn btn-primary ca-submit-btn">
                     <i class="bi bi-floppy me-2"></i>Register Entry
@@ -167,5 +189,209 @@
     padding: .6rem 1.75rem;
     font-weight: 600;
 }
+.mitre-add-row {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.mitre-select {
+    flex: 1;
+    min-width: 180px;
+}
+.mitre-add-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.mitre-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .5rem;
+    min-height: 0;
+}
+.mitre-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: .375rem;
+    padding: .25rem .625rem;
+    font-size: .8rem;
+    color: var(--text-primary);
+}
+.mitre-tag-del {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: .125rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    font-size: .9rem;
+}
+.mitre-tag-del:hover {
+    color: #ef4444;
+}
 </style>
+
+<script>
+(function () {
+    const state = { items: [], techniques: [] };
+
+    async function loadTechniques() {
+        const sel = document.getElementById('mitre-technique');
+        try {
+            const resp = await fetch('/api/mitre/techniques');
+            state.techniques = await resp.json();
+            if (!state.techniques.length) {
+                sel.innerHTML = '<option value="">No techniques available (sync pending)</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">-- Select Technique --</option>';
+            state.techniques.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.technique_id;
+                opt.textContent = `${t.technique_id} - ${t.name}`;
+                opt.dataset.name = t.name;
+                sel.appendChild(opt);
+            });
+        } catch (e) {
+            sel.innerHTML = '<option value="">Error loading techniques</option>';
+        }
+    }
+
+    document.getElementById('mitre-technique').addEventListener('change', async function () {
+        const techId = this.value;
+        const subSel = document.getElementById('mitre-subtechnique');
+        const addBtn = document.getElementById('mitre-add-btn');
+
+        if (!techId) {
+            subSel.innerHTML = '<option value="">Select technique first</option>';
+            subSel.disabled = true;
+            addBtn.disabled = true;
+            return;
+        }
+
+        addBtn.disabled = false;
+        subSel.innerHTML = '<option value="">Loading...</option>';
+        subSel.disabled = true;
+
+        try {
+            const resp = await fetch(`/api/mitre/subtechniques/${encodeURIComponent(techId)}`);
+            const subs = await resp.json();
+            if (!subs.length) {
+                subSel.innerHTML = '<option value="">No subtechniques</option>';
+            } else {
+                subSel.innerHTML = '<option value="">-- Subtechnique (optional) --</option>';
+                subs.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.technique_id;
+                    opt.textContent = `${s.technique_id} - ${s.name}`;
+                    opt.dataset.name = s.name;
+                    subSel.appendChild(opt);
+                });
+                subSel.disabled = false;
+            }
+        } catch (e) {
+            subSel.innerHTML = '<option value="">Error loading</option>';
+        }
+    });
+
+    document.getElementById('mitre-add-btn').addEventListener('click', function () {
+        const techSel = document.getElementById('mitre-technique');
+        const subSel = document.getElementById('mitre-subtechnique');
+        const techId = techSel.value;
+        if (!techId) return;
+
+        const techName = techSel.options[techSel.selectedIndex].dataset.name || techId;
+        const subId = subSel.disabled ? '' : subSel.value;
+        const subName = subId ? (subSel.options[subSel.selectedIndex].dataset.name || subId) : '';
+
+        const key = subId ? `${techId}:${subId}` : techId;
+        if (state.items.find(i => i.key === key)) return;
+
+        const label = subId
+            ? `${techId} - ${techName} / ${subId} - ${subName}`
+            : `${techId} - ${techName}`;
+
+        state.items.push({ key, label });
+        renderTags();
+    });
+
+    function renderTags() {
+        const container = document.getElementById('mitre-tags');
+        container.innerHTML = '';
+        state.items.forEach((item, idx) => {
+            const tag = document.createElement('div');
+            tag.className = 'mitre-tag';
+            tag.innerHTML = `<span>${item.label}</span>` +
+                `<button type="button" class="mitre-tag-del" data-idx="${idx}" title="Remove">` +
+                `<i class="bi bi-x-lg"></i></button>`;
+            container.appendChild(tag);
+        });
+        container.querySelectorAll('.mitre-tag-del').forEach(btn => {
+            btn.addEventListener('click', function () {
+                state.items.splice(parseInt(this.dataset.idx), 1);
+                renderTags();
+            });
+        });
+        const keys = state.items.map(i => i.key);
+        document.getElementById('mitre-json-input').value = keys.length ? JSON.stringify(keys) : '';
+    }
+
+    async function loadExistingMitre(existing) {
+        if (!existing || !existing.length) return;
+
+        const parentIds = new Set();
+        existing.forEach(key => {
+            const parts = key.split(':');
+            if (parts.length === 2) parentIds.add(parts[0]);
+        });
+
+        const subMap = {};
+        for (const pid of parentIds) {
+            try {
+                const resp = await fetch(`/api/mitre/subtechniques/${encodeURIComponent(pid)}`);
+                const subs = await resp.json();
+                subs.forEach(s => { subMap[s.technique_id] = s.name; });
+            } catch (e) {}
+        }
+
+        const techNameMap = {};
+        state.techniques.forEach(t => { techNameMap[t.technique_id] = t.name; });
+
+        state.items = [];
+        existing.forEach(key => {
+            const parts = key.split(':');
+            const techId = parts[0];
+            const subId = parts[1] || null;
+            const techName = techNameMap[techId] || techId;
+            const label = subId
+                ? `${techId} - ${techName} / ${subId} - ${subMap[subId] || subId}`
+                : `${techId} - ${techName}`;
+            state.items.push({ key, label });
+        });
+
+        renderTags();
+    }
+
+    document.querySelector('[name="rule_name"]').addEventListener('blur', async function () {
+        const ruleName = this.value.trim();
+        if (!ruleName) return;
+        try {
+            const resp = await fetch(`/api/rule/mitre?rule_name=${encodeURIComponent(ruleName)}`);
+            const existing = await resp.json();
+            if (existing && existing.length) {
+                await loadExistingMitre(existing);
+            }
+        } catch (e) {}
+    });
+
+    loadTechniques();
+})();
+</script>
 {% endblock %}

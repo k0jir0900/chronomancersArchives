@@ -3,7 +3,7 @@ import mysql.connector
 import random
 import uuid
 import os
-import time
+import json
 from datetime import datetime, timedelta
 
 # Database Configuration (Defaults or Env Vars)
@@ -52,6 +52,35 @@ TUNING_DRIVERS = ['fp_correction', 'hardening', 'new_use_case', 'maintenance']
 AUTHORS = ['Kaladin, Stormblessed', 'Kelsier, the Survivor of Hathsin', 'Vin, the Heir to the Ascension', 'Shallan Davar, Lightweaver', 'Dalinar Kholin, the Blackthorn', 'Sazed, the Keeper', 'Raoden, Prince of Elantris', 'Siri, Vessel of the Returned', 'Adolin Kholin, Prince’s Duelist', 'Hoid, Wit']
 COMPANIES = ['Acme Corp', 'Stark Industries', 'Wayne Enterprises', 'Umbrella Corporation', 'Cyberdyne Systems']
 ENVIRONMENTS = ['IT', 'OT']
+
+# Realistic MITRE ATT&CK technique/subtechnique pairs (technique_id: [subtechnique_id, ...])
+MITRE_POOL = {
+    'T1059': ['T1059.001', 'T1059.003', 'T1059.004'],
+    'T1078': ['T1078.001', 'T1078.002', 'T1078.004'],
+    'T1110': ['T1110.001', 'T1110.003'],
+    'T1055': ['T1055.001', 'T1055.012'],
+    'T1003': ['T1003.001', 'T1003.002'],
+    'T1190': [],
+    'T1566': ['T1566.001', 'T1566.002'],
+    'T1486': [],
+    'T1489': [],
+    'T1548': ['T1548.002'],
+}
+MITRE_TECHNIQUES = list(MITRE_POOL.keys())
+
+def random_mitre():
+    count = random.randint(1, 3)
+    chosen = random.sample(MITRE_TECHNIQUES, min(count, len(MITRE_TECHNIQUES)))
+    keys = []
+    for tech in chosen:
+        subs = MITRE_POOL[tech]
+        if subs and random.random() < 0.6:
+            sub = random.choice(subs)
+            keys.append(f"{tech}:{sub}")
+        else:
+            keys.append(tech)
+    return json.dumps(keys)
+
 def generate_random_date(start_date, end_date):
     time_between_dates = end_date - start_date
     days_between_dates = time_between_dates.days
@@ -105,6 +134,7 @@ def main():
         created_at = generate_random_date(start_date, end_date - timedelta(days=10)) # Leave room for mods
         creator = random.choice(AUTHORS)
         
+        rule_mitre = random_mitre()
         creation_event = {
             "rule_name": rule["title"],
             "company": rule["company"],
@@ -127,7 +157,8 @@ def main():
                 detection_msg=f"{rule['title']} detected"
             ),
             "modified_by": creator,
-            "created_at": created_at
+            "created_at": created_at,
+            "mitre": rule_mitre
         }
         events.append(creation_event)
 
@@ -149,6 +180,8 @@ def main():
             modifier = random.choice(AUTHORS)
             driver = random.choice(TUNING_DRIVERS)
             
+            if random.random() < 0.4:
+                rule_mitre = random_mitre()
             mod_event = {
                 "rule_name": rule["title"],
                 "company": rule["company"],
@@ -165,13 +198,14 @@ def main():
                     rule_title=rule["title"],
                     rule_id=rule["id"],
                     description_text=f"a {rule['title']} occurs (v{i+2})",
-                    author=creator, # Original author usually kept
+                    author=creator,
                     created_date=created_at.strftime("%Y-%m-%d"),
                     modified_date=mod_date.strftime("%Y-%m-%d"),
                     detection_msg=f"{rule['title']} detected (tuned)"
                 ),
                 "modified_by": modifier,
-                "created_at": mod_date
+                "created_at": mod_date,
+                "mitre": rule_mitre
             }
             events.append(mod_event)
 
@@ -190,9 +224,10 @@ def main():
                     "tuning_driver": "maintenance",
                     "ticket": f"TKT-{random.randint(1000, 9999)}",
                     "description": "Rule deprecated/removed.",
-                    "rule_content": "DELETED", # Or keep content marked deleted
+                    "rule_content": "DELETED",
                     "modified_by": deleter,
-                    "created_at": del_date
+                    "created_at": del_date,
+                    "mitre": rule_mitre
                 }
                 events.append(del_event)
 
@@ -203,24 +238,25 @@ def main():
     events.sort(key=lambda x: x['created_at'])
 
     sql = """
-    INSERT INTO archives 
-    (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, created_at) 
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO archives
+    (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, created_at, mitre)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     for e in events:
         val = (
-            e['rule_name'], 
+            e['rule_name'],
             e['company'],
             e['environment'],
-            e['action_type'], 
-            e['rule_status'], 
-            e['tuning_driver'], 
-            e['ticket'], 
-            e['description'], 
-            e['rule_content'], 
-            e['modified_by'], 
-            e['created_at']
+            e['action_type'],
+            e['rule_status'],
+            e['tuning_driver'],
+            e['ticket'],
+            e['description'],
+            e['rule_content'],
+            e['modified_by'],
+            e['created_at'],
+            e.get('mitre')
         )
         cursor.execute(sql, val)
 

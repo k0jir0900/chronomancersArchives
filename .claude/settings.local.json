@@ -9,7 +9,11 @@
       "Bash(Select-Object FullName)",
       "Bash(python *)",
       "Bash(Test-Path *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(ConvertTo-Csv -NoTypeInformation)",
+      "Bash(Out-String)"
     ]
   }
 }

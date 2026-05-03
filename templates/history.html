@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}History – Chronomancers Archives{% endblock %}
-{% block page_title %}{% if is_active_search and summary %}CDU Detail – {{ summary.rule_name }}{% else %}Rules History{% endif %}{% endblock %}
+{% block page_title %}{% if is_active_search and summary %}CDU Detail – {{ summary.rule_name }}{% else %}CDU Details{% endif %}{% endblock %}
 
 {% block content %}
 <!-- Header & Compare button -->
@@ -97,6 +97,29 @@
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
         </div>
     </div>
+    {% if mitre_info %}
+    <div style="margin-bottom:30px;font-size:12px;">
+        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">MITRE ATT&CK</div>
+        <div style="padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+            {% for m in mitre_info %}
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                {% if m.subtechnique_id %}
+                <span style="background:#e0e0f0;border:1px solid #c0c0e0;border-radius:3px;padding:2px 8px;font-size:11px;">
+                    <strong>{{ m.technique_id }}</strong> {{ m.technique_name }} / <strong>{{ m.subtechnique_id }}</strong> {{ m.subtechnique_name }}
+                </span>
+                {% else %}
+                <span style="background:#e0e0f0;border:1px solid #c0c0e0;border-radius:3px;padding:2px 8px;font-size:11px;">
+                    <strong>{{ m.technique_id }}</strong> {{ m.technique_name }}
+                </span>
+                {% endif %}
+                {% if m.tactic %}
+                <span style="background:#d0d8f0;border-radius:3px;padding:1px 6px;font-size:10px;">{{ m.tactic.split(',')[0] | title }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
     <div>
         <h3 style="margin:0 0 20px;font-size:16px;color:#000;border-bottom:2px solid #000;padding-bottom:5px;text-transform:uppercase;">Event Details</h3>
         {% for log in timeline|reverse %}
@@ -188,6 +211,34 @@
     </div>
 </div>
 
+{% if mitre_info %}
+<!-- MITRE ATT&CK -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <p class="text-secondary small text-uppercase mb-2" style="letter-spacing:.5px;"><i class="bi bi-shield-fill-exclamation me-1"></i>MITRE ATT&CK</p>
+        <div class="d-flex flex-wrap gap-2">
+            {% for m in mitre_info %}
+            <div class="mitre-tag">
+                {% if m.subtechnique_id %}
+                    <span class="fw-semibold">{{ m.technique_id }}</span>
+                    <span class="text-secondary">{{ m.technique_name }}</span>
+                    <span class="text-secondary mx-1">/</span>
+                    <span class="fw-semibold">{{ m.subtechnique_id }}</span>
+                    <span class="text-secondary">{{ m.subtechnique_name }}</span>
+                {% else %}
+                    <span class="fw-semibold">{{ m.technique_id }}</span>
+                    <span class="text-secondary">{{ m.technique_name }}</span>
+                {% endif %}
+                {% if m.tactic %}
+                <span class="badge ms-1" style="background:rgba(99,102,241,.18);color:#a5b4fc;font-size:.7rem;font-weight:500;">{{ m.tactic.split(',')[0] | title }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Timeline -->
 <h5 class="mb-3">Historical Detail</h5>
 <div class="ca-timeline-container">
@@ -275,6 +326,21 @@
 {% endblock %}
 
 {% block scripts %}
+{% if mitre_info %}
+<style>
+.mitre-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: .375rem;
+    padding: .35rem .75rem;
+    font-size: .8rem;
+    color: var(--text-primary);
+}
+</style>
+{% endif %}
 {% if chart_data and is_active_search and summary %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>

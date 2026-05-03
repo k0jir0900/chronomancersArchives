@@ -2,7 +2,7 @@ import os
 import functools
 import json
 import atexit
-from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file
+from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify
 import mysql.connector
 from datetime import datetime, timedelta
 import calendar
@@ -10,9 +10,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
+import urllib.request
+import urllib.error
+import threading
+
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
+    from apscheduler.triggers.interval import IntervalTrigger
     scheduler_available = True
 except ImportError:
     scheduler_available = False
@@ -50,6 +55,105 @@ def get_db_connection():
         print(f"Error: {err}")
         return None
 
+def sync_mitre_data():
+    url = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'chronomancers-archives/1.0'})
+        with urllib.request.urlopen(req, timeout=120) as response:
+            data = json.loads(response.read().decode('utf-8'))
+    except Exception as e:
+        print(f"MITRE sync fetch error: {e}")
+        return False
+
+    techniques = []
+    for obj in data.get('objects', []):
+        if obj.get('type') != 'attack-pattern':
+            continue
+        if obj.get('x_mitre_deprecated', False) or obj.get('revoked', False):
+            continue
+
+        tech_id = None
+        for ref in obj.get('external_references', []):
+            if ref.get('source_name') == 'mitre-attack':
+                tech_id = ref.get('external_id')
+                break
+
+        if not tech_id or not tech_id.startswith('T'):
+            continue
+
+        name = obj.get('name', '')
+        is_subtechnique = obj.get('x_mitre_is_subtechnique', False)
+        tactics = [p['phase_name'] for p in obj.get('kill_chain_phases', [])
+                   if p.get('kill_chain_name') == 'mitre-attack']
+        tactic_str = ','.join(tactics) if tactics else None
+        parent_id = tech_id.split('.')[0] if is_subtechnique and '.' in tech_id else None
+
+        techniques.append((tech_id, name, tactic_str, parent_id))
+
+    if not techniques:
+        return False
+
+    conn = get_db_connection()
+    if not conn:
+        return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT GET_LOCK('mitre_sync_lock', 0) AS acquired")
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            cursor.close()
+            conn.close()
+            return False
+
+        try:
+            cursor.execute("TRUNCATE TABLE mitre_techniques")
+            cursor.executemany(
+                "INSERT INTO mitre_techniques (technique_id, name, tactic, parent_id) VALUES (%s, %s, %s, %s)",
+                techniques
+            )
+            cursor.execute("DELETE FROM mitre_sync")
+            cursor.execute("INSERT INTO mitre_sync (last_updated) VALUES (NOW())")
+            conn.commit()
+            print(f"MITRE sync complete: {len(techniques)} techniques stored")
+            return True
+        except Exception as e:
+            print(f"MITRE DB error: {e}")
+            return False
+        finally:
+            cursor.execute("SELECT RELEASE_LOCK('mitre_sync_lock')")
+            cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def startup_mitre_check():
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques")
+        count_row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        needs_sync = True
+        if row and row['last_updated'] and count_row and count_row['cnt'] > 0:
+            days_since = (datetime.now() - row['last_updated']).days
+            needs_sync = days_since >= 7
+
+        if needs_sync:
+            print("Starting MITRE ATT&CK background sync...")
+            t = threading.Thread(target=sync_mitre_data, daemon=True)
+            t.start()
+    except Exception as e:
+        print(f"MITRE startup check error: {e}")
+
+
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
@@ -63,20 +167,14 @@ def init_db():
     if conn:
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM users WHERE username = %s", ('admin',))
-        user = cursor.fetchone()
-        if not user:
-            hashed_password = generate_password_hash('admin')
-            try:
-                cursor.execute("INSERT INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)", ('admin', 'Admin', hashed_password, 'Admin'))
-                conn.commit()
-                print("Default admin user created.")
-            except mysql.connector.Error:
-                try:
-                    cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", ('admin', hashed_password, 'Admin'))
-                    conn.commit()
-                except:
-                    print("Could not create default user (check schema)")
+        hashed_password = generate_password_hash('admin')
+        cursor.execute(
+            "INSERT IGNORE INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
+            ('admin', 'Admin', hashed_password, 'Admin')
+        )
+        conn.commit()
+        if cursor.rowcount:
+            print("Default admin user created.")
 
         cursor.close()
         conn.close()
@@ -316,11 +414,46 @@ def history():
                     chart_data['deleted'].append(0)
                 current_date += timedelta(days=1)
     
+    mitre_info = []
+    if timeline_data:
+        latest_mitre = timeline_data[0].get('mitre')
+        if latest_mitre:
+            if isinstance(latest_mitre, str):
+                try:
+                    latest_mitre = json.loads(latest_mitre)
+                except (json.JSONDecodeError, ValueError):
+                    latest_mitre = []
+            if isinstance(latest_mitre, list):
+                tech_ids = set()
+                for key in latest_mitre:
+                    parts = key.split(':')
+                    tech_ids.add(parts[0])
+                    if len(parts) == 2:
+                        tech_ids.add(parts[1])
+                tech_map = {}
+                if tech_ids:
+                    fmt = ','.join(['%s'] * len(tech_ids))
+                    cursor.execute(f"SELECT technique_id, name, tactic FROM mitre_techniques WHERE technique_id IN ({fmt})", tuple(tech_ids))
+                    tech_map = {row['technique_id']: row for row in cursor.fetchall()}
+                for key in latest_mitre:
+                    parts = key.split(':')
+                    tech_id = parts[0]
+                    sub_id = parts[1] if len(parts) == 2 else None
+                    tech = tech_map.get(tech_id, {})
+                    entry = {
+                        'technique_id': tech_id,
+                        'technique_name': tech.get('name', tech_id),
+                        'tactic': tech.get('tactic', ''),
+                        'subtechnique_id': sub_id,
+                        'subtechnique_name': tech_map.get(sub_id, {}).get('name', sub_id) if sub_id else None
+                    }
+                    mitre_info.append(entry)
+
     cursor.close()
     conn.close()
-    
+
     is_active_search = bool(selected_rule or selected_company or selected_environment or selected_status)
-    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata)
+    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata, mitre_info=mitre_info)
 
 @app.route('/diff')
 @login_required
@@ -428,8 +561,18 @@ def register():
             except:
                 modifier_name = session.get('username')
 
-            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name)
+            mitre_raw = request.form.get('mitre_json', '').strip()
+            mitre_data = None
+            if mitre_raw:
+                try:
+                    parsed = json.loads(mitre_raw)
+                    if parsed:
+                        mitre_data = json.dumps(parsed)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, mitre) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name, mitre_data)
             
             try:
                 cursor.execute(query, values)
@@ -446,6 +589,70 @@ def register():
         return redirect(url_for('register'))
 
     return render_template('register.html')
+
+
+@app.route('/api/mitre/techniques')
+@login_required
+def api_mitre_techniques():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify([])
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT technique_id, name, tactic FROM mitre_techniques "
+        "WHERE parent_id IS NULL ORDER BY technique_id"
+    )
+    techniques = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(techniques)
+
+
+@app.route('/api/mitre/subtechniques/<technique_id>')
+@login_required
+def api_mitre_subtechniques(technique_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify([])
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT technique_id, name FROM mitre_techniques "
+        "WHERE parent_id = %s ORDER BY technique_id",
+        (technique_id,)
+    )
+    subs = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(subs)
+
+
+@app.route('/api/rule/mitre')
+@login_required
+def api_rule_mitre():
+    rule_name = request.args.get('rule_name', '').strip()
+    if not rule_name:
+        return jsonify(None)
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(None)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT mitre FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
+        (rule_name,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not row or not row['mitre']:
+        return jsonify(None)
+    mitre = row['mitre']
+    if isinstance(mitre, str):
+        try:
+            mitre = json.loads(mitre)
+        except (json.JSONDecodeError, ValueError):
+            return jsonify(None)
+    return jsonify(mitre)
+
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -559,8 +766,9 @@ def health():
 try:
     with app.app_context():
         init_db()
+        startup_mitre_check()
 except Exception as e:
-    print(f"Warning: Could not initialize DB on startup: {e}")
+    print(f"Warning: Could not initialize on startup: {e}")
 
 def admin_required(view):
     @functools.wraps(view)
@@ -965,6 +1173,19 @@ def init_scheduler():
 if scheduler_available:
     init_scheduler()
     if scheduler:
+        try:
+            scheduler.add_job(
+                func=sync_mitre_data,
+                trigger=IntervalTrigger(days=7),
+                id='mitre_sync_job',
+                name='MITRE ATT&CK Sync',
+                replace_existing=True
+            )
+            if not scheduler.running:
+                scheduler.start()
+        except Exception as e:
+            print(f"MITRE scheduler error: {e}")
+
         def safe_shutdown():
             if scheduler.running:
                 scheduler.shutdown()
