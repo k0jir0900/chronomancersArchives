@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}API Audit – Chronomancers Archives{% endblock %}
+{% block page_title %}API Audit Log{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <span class="text-secondary small">{{ total }} total event{{ 's' if total != 1 else '' }}</span>
+    <a href="/api/docs" target="_blank" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-book me-1"></i>API Docs
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:.85rem;">
+                <thead>
+                    <tr>
+                        <th style="width:160px;">Date</th>
+                        <th style="width:120px;">Action</th>
+                        <th>User</th>
+                        <th>IP</th>
+                        <th>Endpoint</th>
+                        <th>Params</th>
+                        <th style="width:80px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    {% set action = log.action or 'api_call' %}
+                    <tr>
+                        <td class="text-secondary">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if action == 'key_generated' %}
+                            <span class="badge" style="background:#238636;color:#fff;">Key Created</span>
+                            {% elif action == 'key_regenerated' %}
+                            <span class="badge" style="background:#d29922;color:#fff;">Key Regen</span>
+                            {% elif action == 'auth_failed' %}
+                            <span class="badge" style="background:#da3633;color:#fff;">Auth Failed</span>
+                            {% else %}
+                            <span class="badge" style="background:#1f6feb;color:#fff;">API Call</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.username %}
+                                <span class="fw-medium">{{ log.full_name or log.username }}</span>
+                                <span class="text-secondary ms-1">@{{ log.username }}</span>
+                            {% else %}
+                                <span class="text-secondary small">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-secondary font-monospace">{{ log.ip_address or '-' }}</td>
+                        <td class="font-monospace text-secondary">{{ log.endpoint or '-' }}</td>
+                        <td class="text-secondary">
+                            {% if log.params and log.params != '{}' %}
+                            <code style="font-size:.75rem;">{{ log.params }}</code>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if log.status_code %}
+                            {% set sc = log.status_code %}
+                            <span class="badge" style="background:{% if sc == 200 %}#238636{% elif sc in [401,403] %}#da3633{% else %}#d29922{% endif %};color:#fff;">
+                                {{ sc }}
+                            </span>
+                            {% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-secondary py-4">No events recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if pages > 1 %}
+        <div class="d-flex justify-content-end gap-2 p-3">
+            {% for p in range(1, pages + 1) %}
+            <a href="?page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else 'btn-outline-secondary' }}">{{ p }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

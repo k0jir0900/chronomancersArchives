@@ -1,4 +1,5 @@
 import os
+import secrets
 import functools
 import json
 import atexit
@@ -166,7 +167,41 @@ def init_db():
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
-        
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL UNIQUE,
+                key_value VARCHAR(67) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP NULL DEFAULT NULL,
+                INDEX idx_api_keys_value (key_value)
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_audit_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                api_key_id INT NULL,
+                action VARCHAR(50) DEFAULT 'api_call',
+                ip_address VARCHAR(45),
+                endpoint VARCHAR(255),
+                params TEXT,
+                status_code INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_audit_created (created_at),
+                INDEX idx_audit_user (user_id)
+            )
+        """)
+        cursor.execute("""
+            ALTER TABLE api_audit_log
+            MODIFY COLUMN status_code INT NULL
+        """)
+        try:
+            cursor.execute("ALTER TABLE api_audit_log ADD COLUMN action VARCHAR(50) DEFAULT 'api_call' AFTER api_key_id")
+        except mysql.connector.Error:
+            pass
+
         hashed_password = generate_password_hash('admin')
         cursor.execute(
             "INSERT IGNORE INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
@@ -744,20 +779,23 @@ def profile():
 
     cursor = None
     user_data = None
+    api_key_data = None
     try:
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
         except:
             cursor.execute("SELECT username, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
-        
         user_data = cursor.fetchone()
+        cursor.execute("SELECT key_value, created_at, last_used_at FROM api_keys WHERE user_id = %s", (session['user_id'],))
+        api_key_data = cursor.fetchone()
     finally:
         if cursor:
             cursor.close()
         conn.close()
-    
-    return render_template('profile.html', user=user_data)
+
+    revealed_key = session.pop('api_key_reveal', None)
+    return render_template('profile.html', user=user_data, api_key=api_key_data, revealed_key=revealed_key)
 
 @app.route('/health')
 def health():
@@ -1220,6 +1258,313 @@ def inject_schedule_config():
     if request.endpoint == 'list_backups':
         return dict(schedule_config=load_schedule_config())
     return dict()
+
+# --- API KEY & AUDIT ---
+
+def _log_api_audit(user_id, api_key_id, status_code, action='api_call'):
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO api_audit_log (user_id, api_key_id, action, ip_address, endpoint, params, status_code) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (user_id, api_key_id, action, request.remote_addr, request.path, json.dumps(dict(request.args)), status_code)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception:
+        pass
+
+
+def require_api_key(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        key = request.headers.get('X-API-Key', '').strip()
+        if not key:
+            _log_api_audit(None, None, 401, 'auth_failed')
+            return jsonify({'error': 'Missing X-API-Key header'}), 401
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Service unavailable'}), 503
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, user_id FROM api_keys WHERE key_value = %s", (key,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            _log_api_audit(None, None, 403, 'auth_failed')
+            return jsonify({'error': 'Invalid API key'}), 403
+        cursor.execute("UPDATE api_keys SET last_used_at = NOW() WHERE id = %s", (row['id'],))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        resp = f(*args, **kwargs)
+        status = resp[1] if isinstance(resp, tuple) else 200
+        _log_api_audit(row['user_id'], row['id'], status, 'api_call')
+        return resp
+    return decorated
+
+
+@app.route('/profile/api-key/generate', methods=['POST'])
+@login_required
+def generate_api_key():
+    new_key = 'ca_' + secrets.token_hex(32)
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('profile'))
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO api_keys (user_id, key_value) VALUES (%s, %s) "
+            "ON DUPLICATE KEY UPDATE key_value = VALUES(key_value), created_at = NOW(), last_used_at = NULL",
+            (session['user_id'], new_key)
+        )
+        conn.commit()
+        # rowcount=1 means INSERT (new key), rowcount=2 means UPDATE (regenerated)
+        action = 'key_generated' if cursor.rowcount == 1 else 'key_regenerated'
+        session['api_key_reveal'] = new_key
+        cursor2 = conn.cursor(dictionary=True)
+        cursor2.execute("SELECT id FROM api_keys WHERE user_id = %s", (session['user_id'],))
+        key_row = cursor2.fetchone()
+        cursor2.close()
+        _log_api_audit(session['user_id'], key_row['id'] if key_row else None, None, action)
+    except mysql.connector.Error as err:
+        flash(f'Error generating API key: {err}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('profile'))
+
+
+@app.route('/api/v1/cdu')
+@require_api_key
+def api_export_cdu():
+    company = request.args.get('company', '').strip()
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+        limit = min(500, max(1, int(request.args.get('limit', 100))))
+    except ValueError:
+        return jsonify({'error': 'Invalid pagination parameters'}), 400
+    offset = (page - 1) * limit
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Service unavailable'}), 503
+    cursor = conn.cursor(dictionary=True)
+
+    conditions, params = [], []
+    if company:
+        conditions.append("company = %s")
+        params.append(company)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    cursor.execute(f"SELECT COUNT(*) as total FROM archives {where}", tuple(params))
+    total = cursor.fetchone()['total']
+    cursor.execute(
+        f"SELECT id, rule_name, company, environment, action_type, rule_status, tuning_driver, "
+        f"ticket, description, rule_content, modified_by, mitre, created_at "
+        f"FROM archives {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
+        tuple(params) + (limit, offset)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    records = []
+    for row in rows:
+        mitre = row['mitre']
+        if mitre and isinstance(mitre, str):
+            try:
+                mitre = json.loads(mitre)
+            except (json.JSONDecodeError, ValueError):
+                mitre = []
+        records.append({
+            'id': row['id'],
+            'rule_name': row['rule_name'],
+            'company': row['company'],
+            'environment': row['environment'],
+            'action_type': row['action_type'],
+            'rule_status': row['rule_status'],
+            'tuning_driver': row['tuning_driver'],
+            'ticket': row['ticket'],
+            'description': row['description'],
+            'rule_content': row['rule_content'],
+            'modified_by': row['modified_by'],
+            'mitre': mitre or [],
+            'created_at': row['created_at'].isoformat() if row['created_at'] else None
+        })
+
+    return jsonify({
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'pages': (total + limit - 1) // limit,
+        'data': records
+    })
+
+
+@app.route('/api/docs')
+@login_required
+def api_docs():
+    return render_template('api_docs.html')
+
+
+@app.route('/api/openapi.json')
+def api_openapi():
+    base = request.host_url.rstrip('/')
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": "Chronomancers Archives API",
+            "version": "1.0.0",
+            "description": "REST API to export CDU (Correlation Detection Unit) records from Chronomancers Archives."
+        },
+        "servers": [{"url": base, "description": "Current server"}],
+        "security": [{"ApiKeyAuth": []}],
+        "components": {
+            "securitySchemes": {
+                "ApiKeyAuth": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-API-Key",
+                    "description": "API key generated from your profile page. Format: `ca_<64 hex chars>`"
+                }
+            },
+            "schemas": {
+                "CDU": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer", "example": 42},
+                        "rule_name": {"type": "string", "example": "Windows Brute Force"},
+                        "company": {"type": "string", "example": "Acme Corp"},
+                        "environment": {"type": "string", "enum": ["IT", "OT", "Both"]},
+                        "action_type": {"type": "string", "enum": ["creation", "modification", "elimination"]},
+                        "rule_status": {"type": "string", "enum": ["active", "disabled"]},
+                        "tuning_driver": {"type": "string", "enum": ["fp_correction", "hardening", "new_use_case", "maintenance"]},
+                        "ticket": {"type": "string", "nullable": True, "example": "TKT-1234"},
+                        "description": {"type": "string"},
+                        "rule_content": {"type": "string"},
+                        "modified_by": {"type": "string"},
+                        "mitre": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "example": ["T1110", "T1078:T1078.004"]
+                        },
+                        "created_at": {"type": "string", "format": "date-time"}
+                    }
+                },
+                "CDUListResponse": {
+                    "type": "object",
+                    "properties": {
+                        "total": {"type": "integer"},
+                        "page": {"type": "integer"},
+                        "limit": {"type": "integer"},
+                        "pages": {"type": "integer"},
+                        "data": {"type": "array", "items": {"$ref": "#/components/schemas/CDU"}}
+                    }
+                },
+                "Error": {
+                    "type": "object",
+                    "properties": {"error": {"type": "string"}}
+                }
+            }
+        },
+        "paths": {
+            "/api/v1/cdu": {
+                "get": {
+                    "summary": "Export CDU records",
+                    "description": "Returns a paginated list of CDU records. Optionally filter by company.",
+                    "operationId": "exportCDU",
+                    "security": [{"ApiKeyAuth": []}],
+                    "parameters": [
+                        {
+                            "name": "company",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string"},
+                            "description": "Filter by exact company name"
+                        },
+                        {
+                            "name": "page",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "integer", "default": 1, "minimum": 1},
+                            "description": "Page number (starts at 1)"
+                        },
+                        {
+                            "name": "limit",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500},
+                            "description": "Records per page (max 500)"
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Paginated CDU records",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/CDUListResponse"}
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Invalid parameters",
+                            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+                        },
+                        "401": {
+                            "description": "Missing API key",
+                            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+                        },
+                        "403": {
+                            "description": "Invalid API key",
+                            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return jsonify(spec)
+
+
+@app.route('/audit')
+@login_required
+@admin_required
+def audit():
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('home'))
+
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except ValueError:
+        page = 1
+    per_page = 50
+    offset = (page - 1) * per_page
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT COUNT(*) as total FROM api_audit_log")
+    total = cursor.fetchone()['total']
+    cursor.execute("""
+        SELECT l.id, l.ip_address, l.endpoint, l.params, l.status_code, l.created_at,
+               u.username, u.full_name
+        FROM api_audit_log l
+        LEFT JOIN users u ON l.user_id = u.id
+        ORDER BY l.created_at DESC
+        LIMIT %s OFFSET %s
+    """, (per_page, offset))
+    logs = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    pages = max(1, (total + per_page - 1) // per_page)
+    return render_template('audit.html', logs=logs, page=page, pages=pages, total=total)
+
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5001)

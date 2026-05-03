@@ -66,6 +66,53 @@
             </div>
         </div>
 
+        <!-- API Key -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 ca-section-title">API Key</h6>
+                {% if api_key %}
+                <span class="text-secondary small">
+                    Last used: {{ api_key.last_used_at.strftime('%Y-%m-%d %H:%M') if api_key.last_used_at else 'Never' }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if revealed_key %}
+                <div class="alert alert-success mb-3">
+                    <p class="mb-1 small fw-semibold"><i class="bi bi-key-fill me-1"></i>Your new API key - copy it now, it won't be shown again:</p>
+                    <div class="d-flex align-items-center gap-2">
+                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:.8rem;word-break:break-all;">{{ revealed_key }}</code>
+                        <button class="btn btn-sm btn-outline-secondary" id="copy-key-btn" onclick="navigator.clipboard.writeText('{{ revealed_key }}');this.innerHTML='<i class=\'bi bi-check\'></i>'">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if api_key %}
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Current Key</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:.8rem;">
+                            {{ api_key.key_value[:7] }}••••••••••••••••••••••••••••••••••••••••••••{{ api_key.key_value[-4:] }}
+                        </code>
+                    </div>
+                    <div class="form-text">Generated {{ api_key.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                {% endif %}
+
+                <form method="POST" action="/profile/api-key/generate" onsubmit="return {% if api_key %}confirm('Regenerating will invalidate the current key. Continue?'){% else %}true{% endif %};">
+                    <button type="submit" class="btn btn-{{ 'outline-warning' if api_key else 'outline-primary' }} btn-sm">
+                        <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regenerate Key' if api_key else 'Generate API Key' }}
+                    </button>
+                </form>
+                <p class="form-text mt-2 mb-0">
+                    Use the key in the <code>X-API-Key</code> header. See the
+                    <a href="/api/docs" target="_blank">API documentation</a>.
+                </p>
+            </div>
+        </div>
+
         <!-- Security -->
         <div class="card">
             <div class="card-header">

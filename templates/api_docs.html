@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% block title %}API Documentation – Chronomancers Archives{% endblock %}
+{% block page_title %}API Documentation{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Sidebar nav -->
+    <div class="col-lg-2 d-none d-lg-block">
+        <div style="position:sticky;top:1rem;">
+            <p class="text-secondary small text-uppercase mb-2" style="letter-spacing:.5px;">Contents</p>
+            <nav class="d-flex flex-column gap-1" style="font-size:.85rem;">
+                <a href="#authentication" class="text-secondary text-decoration-none ca-doc-nav">Authentication</a>
+                <a href="#base-url" class="text-secondary text-decoration-none ca-doc-nav">Base URL</a>
+                <a href="#endpoints" class="text-secondary text-decoration-none ca-doc-nav">Endpoints</a>
+                <a href="#parameters" class="text-secondary text-decoration-none ca-doc-nav ms-2">- Parameters</a>
+                <a href="#response" class="text-secondary text-decoration-none ca-doc-nav ms-2">- Response</a>
+                <a href="#schema" class="text-secondary text-decoration-none ca-doc-nav">Schema</a>
+                <a href="#examples" class="text-secondary text-decoration-none ca-doc-nav">Examples</a>
+                <a href="#errors" class="text-secondary text-decoration-none ca-doc-nav">Error Codes</a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="col-lg-10">
+
+        <!-- Authentication -->
+        <div class="ca-doc-section" id="authentication">
+            <h4 class="ca-doc-title"><i class="bi bi-key-fill me-2"></i>Authentication</h4>
+            <p class="text-secondary">All API requests require an API key passed in the request header.</p>
+            <div class="ca-doc-table mb-3">
+                <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <thead><tr><th>Header</th><th>Value</th><th>Required</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><code>X-API-Key</code></td>
+                            <td>Your personal API key</td>
+                            <td><span class="badge" style="background:#da3633;">Yes</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="ca-callout ca-callout-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Generate or regenerate your API key from <a href="/profile#api-key">My Profile</a>.
+                Keys follow the format <code>ca_&lt;64 hex chars&gt;</code>.
+            </div>
+        </div>
+
+        <!-- Base URL -->
+        <div class="ca-doc-section" id="base-url">
+            <h4 class="ca-doc-title"><i class="bi bi-globe me-2"></i>Base URL</h4>
+            <pre class="ca-code-block">{{ request.host_url.rstrip('/') }}/api/v1</pre>
+            <p class="text-secondary small">All endpoints are relative to this base URL.</p>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="ca-doc-section" id="endpoints">
+            <h4 class="ca-doc-title"><i class="bi bi-arrows-collapse me-2"></i>Endpoints</h4>
+
+            <!-- GET /cdu -->
+            <div class="ca-endpoint-block">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <span class="ca-method ca-method-get">GET</span>
+                    <code class="ca-endpoint-path">/api/v1/cdu</code>
+                </div>
+                <p class="text-secondary mb-3">Returns a paginated list of all CDU (Correlation Detection Unit) records. Optionally filter by company.</p>
+
+                <!-- Parameters -->
+                <h6 class="ca-doc-subtitle" id="parameters">Query Parameters</h6>
+                <div class="ca-doc-table mb-4">
+                    <table class="table table-sm mb-0" style="font-size:.875rem;">
+                        <thead>
+                            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>company</code></td>
+                                <td><span class="ca-type">string</span></td>
+                                <td><span class="text-secondary">-</span></td>
+                                <td>Filter by exact company name. Omit to return all companies.</td>
+                            </tr>
+                            <tr>
+                                <td><code>page</code></td>
+                                <td><span class="ca-type">integer</span></td>
+                                <td><code>1</code></td>
+                                <td>Page number. Starts at 1.</td>
+                            </tr>
+                            <tr>
+                                <td><code>limit</code></td>
+                                <td><span class="ca-type">integer</span></td>
+                                <td><code>100</code></td>
+                                <td>Records per page. Min: 1, Max: 500.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Response -->
+                <h6 class="ca-doc-subtitle" id="response">Response <span class="badge ms-1" style="background:#238636;font-size:.7rem;">200 OK</span></h6>
+                <pre class="ca-code-block">{
+  "total":  412,
+  "page":   1,
+  "limit":  100,
+  "pages":  5,
+  "data": [ ... ]
+}</pre>
+            </div>
+        </div>
+
+        <!-- Schema -->
+        <div class="ca-doc-section" id="schema">
+            <h4 class="ca-doc-title"><i class="bi bi-braces me-2"></i>CDU Object Schema</h4>
+            <div class="ca-doc-table">
+                <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <thead>
+                        <tr><th>Field</th><th>Type</th><th>Nullable</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>id</code></td><td><span class="ca-type">integer</span></td><td>No</td><td>Unique record identifier</td></tr>
+                        <tr><td><code>rule_name</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Name of the detection rule</td></tr>
+                        <tr><td><code>company</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Associated company</td></tr>
+                        <tr><td><code>environment</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>IT</code> | <code>OT</code> | <code>Both</code></td></tr>
+                        <tr><td><code>action_type</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>creation</code> | <code>modification</code> | <code>elimination</code></td></tr>
+                        <tr><td><code>rule_status</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>active</code> | <code>disabled</code></td></tr>
+                        <tr><td><code>tuning_driver</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>fp_correction</code> | <code>hardening</code> | <code>new_use_case</code> | <code>maintenance</code></td></tr>
+                        <tr><td><code>ticket</code></td><td><span class="ca-type">string</span></td><td>Yes</td><td>Associated ticket number</td></tr>
+                        <tr><td><code>description</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Description of the change</td></tr>
+                        <tr><td><code>rule_content</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Full rule content (YAML, Sigma, etc.)</td></tr>
+                        <tr><td><code>modified_by</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Name of the user who made the change</td></tr>
+                        <tr><td><code>mitre</code></td><td><span class="ca-type">string[]</span></td><td>No</td><td>MITRE ATT&CK keys. Format: <code>T&lt;id&gt;</code> or <code>T&lt;id&gt;:T&lt;sub&gt;</code></td></tr>
+                        <tr><td><code>created_at</code></td><td><span class="ca-type">datetime</span></td><td>No</td><td>ISO 8601 timestamp of the event</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Examples -->
+        <div class="ca-doc-section" id="examples">
+            <h4 class="ca-doc-title"><i class="bi bi-terminal me-2"></i>Examples</h4>
+
+            <h6 class="ca-doc-subtitle">cURL - All records</h6>
+            <pre class="ca-code-block">curl -X GET "{{ request.host_url.rstrip('/') }}/api/v1/cdu" \
+     -H "X-API-Key: ca_your_api_key_here"</pre>
+
+            <h6 class="ca-doc-subtitle">cURL - Filter by company with pagination</h6>
+            <pre class="ca-code-block">curl -X GET "{{ request.host_url.rstrip('/') }}/api/v1/cdu?company=Acme+Corp&page=2&limit=50" \
+     -H "X-API-Key: ca_your_api_key_here"</pre>
+
+            <h6 class="ca-doc-subtitle">Python (requests)</h6>
+            <pre class="ca-code-block">import requests
+
+API_KEY = "ca_your_api_key_here"
+BASE    = "{{ request.host_url.rstrip('/') }}/api/v1"
+
+resp = requests.get(
+    f"{BASE}/cdu",
+    headers={"X-API-Key": API_KEY},
+    params={"company": "Acme Corp", "limit": 500}
+)
+resp.raise_for_status()
+data = resp.json()
+
+print(f"Total records: {data['total']}")
+for cdu in data["data"]:
+    print(cdu["rule_name"], cdu["action_type"], cdu["created_at"])</pre>
+
+            <h6 class="ca-doc-subtitle">Example response (single CDU object)</h6>
+            <pre class="ca-code-block">{
+  "id": 42,
+  "rule_name": "Windows Brute Force",
+  "company": "Acme Corp",
+  "environment": "IT",
+  "action_type": "modification",
+  "rule_status": "active",
+  "tuning_driver": "fp_correction",
+  "ticket": "TKT-8821",
+  "description": "Reduced threshold from 10 to 5 failed attempts.",
+  "rule_content": "title: Windows Brute Force\n...",
+  "modified_by": "Kaladin Stormblessed",
+  "mitre": ["T1110", "T1110:T1110.001"],
+  "created_at": "2026-04-15T14:32:00"
+}</pre>
+        </div>
+
+        <!-- Error codes -->
+        <div class="ca-doc-section" id="errors">
+            <h4 class="ca-doc-title"><i class="bi bi-exclamation-triangle me-2"></i>Error Codes</h4>
+            <div class="ca-doc-table">
+                <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <thead><tr><th>Code</th><th>Meaning</th><th>Body</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge" style="background:#238636;">200</span></td>
+                            <td>OK</td>
+                            <td>CDU list response</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="background:#d29922;">400</span></td>
+                            <td>Bad Request</td>
+                            <td><code>{"error": "Invalid pagination parameters"}</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="background:#da3633;">401</span></td>
+                            <td>Unauthorized</td>
+                            <td><code>{"error": "Missing X-API-Key header"}</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="background:#da3633;">403</span></td>
+                            <td>Forbidden</td>
+                            <td><code>{"error": "Invalid API key"}</code></td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge" style="background:#da3633;">503</span></td>
+                            <td>Service Unavailable</td>
+                            <td><code>{"error": "Service unavailable"}</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.ca-doc-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    scroll-margin-top: 1rem;
+}
+.ca-doc-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border);
+}
+.ca-doc-subtitle {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-muted);
+    margin: 1.25rem 0 .5rem;
+}
+.ca-doc-nav { padding: 4px 8px; border-radius: 4px; transition: background .15s; }
+.ca-doc-nav:hover { background: var(--bg-hover); color: var(--text-primary) !important; }
+.ca-method {
+    font-size: .75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: .5px;
+}
+.ca-method-get { background: rgba(35,134,54,.2); color: #3fb950; border: 1px solid rgba(35,134,54,.4); }
+.ca-endpoint-path { font-size: .95rem; color: var(--text-primary); }
+.ca-type { font-size: .75rem; color: #a5b4fc; }
+.ca-doc-table { border: 1px solid var(--border); border-radius: .5rem; overflow: hidden; }
+.ca-doc-table .table { margin: 0; }
+.ca-doc-table thead th { background: var(--bg-secondary); font-size: .75rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.ca-code-block {
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border);
+    border-radius: .5rem;
+    padding: 1rem;
+    font-size: .8rem;
+    color: #e6edf3;
+    white-space: pre;
+    overflow-x: auto;
+    margin: 0;
+}
+.ca-callout-info {
+    background: rgba(31,111,235,.1);
+    border: 1px solid rgba(31,111,235,.3);
+    border-radius: .5rem;
+    padding: .75rem 1rem;
+    font-size: .875rem;
+    color: var(--text-secondary);
+}
+.ca-endpoint-block {
+    border: 1px solid var(--border);
+    border-radius: .5rem;
+    padding: 1.25rem;
+}
+</style>
+{% endblock %}
