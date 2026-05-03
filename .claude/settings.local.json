@@ -13,7 +13,10 @@
       "Bash(Select-Object -Property FullName, PSIsContainer)",
       "Bash(Sort-Object FullName)",
       "Bash(ConvertTo-Csv -NoTypeInformation)",
-      "Bash(Out-String)"
+      "Bash(Out-String)",
+      "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\app.py\" -Pattern \"CREATE TABLE|archives|mitre\" | Select-Object -First 40 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\app.py\" -Pattern \"^import|^from\" | Select-Object -First 20 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\templates\\\\profile.html\" -Pattern \"key_value|api_key|revealed_key|key_prefix\" | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })"
     ]
   }
 }

@@ -7,17 +7,15 @@
 
     <!-- Sidebar nav -->
     <div class="col-lg-2 d-none d-lg-block">
-        <div style="position:sticky;top:1rem;">
+        <div id="doc-nav-sticky" style="position:sticky;top:calc(var(--topbar-h) + 1rem);max-height:calc(100vh - var(--topbar-h) - 2rem);overflow-y:auto;">
             <p class="text-secondary small text-uppercase mb-2" style="letter-spacing:.5px;">Contents</p>
-            <nav class="d-flex flex-column gap-1" style="font-size:.85rem;">
-                <a href="#authentication" class="text-secondary text-decoration-none ca-doc-nav">Authentication</a>
-                <a href="#base-url" class="text-secondary text-decoration-none ca-doc-nav">Base URL</a>
-                <a href="#endpoints" class="text-secondary text-decoration-none ca-doc-nav">Endpoints</a>
-                <a href="#parameters" class="text-secondary text-decoration-none ca-doc-nav ms-2">- Parameters</a>
-                <a href="#response" class="text-secondary text-decoration-none ca-doc-nav ms-2">- Response</a>
-                <a href="#schema" class="text-secondary text-decoration-none ca-doc-nav">Schema</a>
-                <a href="#examples" class="text-secondary text-decoration-none ca-doc-nav">Examples</a>
-                <a href="#errors" class="text-secondary text-decoration-none ca-doc-nav">Error Codes</a>
+            <nav id="doc-nav" class="d-flex flex-column gap-1" style="font-size:.85rem;">
+                <a href="#authentication" class="text-decoration-none ca-doc-nav" data-section="authentication">Authentication</a>
+                <a href="#base-url" class="text-decoration-none ca-doc-nav" data-section="base-url">Base URL</a>
+                <a href="#endpoints" class="text-decoration-none ca-doc-nav" data-section="endpoints">Endpoints</a>
+                <a href="#schema" class="text-decoration-none ca-doc-nav" data-section="schema">Schema</a>
+                <a href="#examples" class="text-decoration-none ca-doc-nav" data-section="examples">Examples</a>
+                <a href="#errors" class="text-decoration-none ca-doc-nav" data-section="errors">Error Codes</a>
             </nav>
         </div>
     </div>
@@ -249,8 +247,9 @@ for cdu in data["data"]:
     color: var(--text-muted);
     margin: 1.25rem 0 .5rem;
 }
-.ca-doc-nav { padding: 4px 8px; border-radius: 4px; transition: background .15s; }
+.ca-doc-nav { padding: 4px 8px; border-radius: 4px; transition: background .15s, color .15s; color: var(--text-muted); }
 .ca-doc-nav:hover { background: var(--bg-hover); color: var(--text-primary) !important; }
+.ca-doc-nav.active { background: rgba(99,102,241,.15); color: #a5b4fc !important; font-weight: 500; }
 .ca-method {
     font-size: .75rem;
     font-weight: 700;
@@ -289,4 +288,22 @@ for cdu in data["data"]:
     padding: 1.25rem;
 }
 </style>
+<script>
+(function () {
+    const sections = Array.from(document.querySelectorAll('.ca-doc-section[id]'));
+    const navLinks = document.querySelectorAll('#doc-nav .ca-doc-nav[data-section]');
+
+    function setActive(id) {
+        navLinks.forEach(a => a.classList.toggle('active', a.dataset.section === id));
+    }
+
+    const observer = new IntersectionObserver(entries => {
+        const visible = entries.filter(e => e.isIntersecting);
+        if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: '-15% 0px -75% 0px', threshold: 0 });
+
+    sections.forEach(s => observer.observe(s));
+    if (sections.length) setActive(sections[0].id);
+})();
+</script>
 {% endblock %}

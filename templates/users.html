@@ -33,8 +33,9 @@
                     <div class="col-md-2">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
                         <select class="form-select" name="role" required>
-                            <option value="User">User</option>
-                            <option value="Admin">Admin</option>
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                            <option value="service">Service</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -56,61 +57,117 @@
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" style="font-size:.875rem;">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>User</th>
                         <th>Username</th>
-                        <th>Full Name</th>
                         <th>Role</th>
-                        <th>Actions</th>
+                        <th>Status</th>
+                        <th>API Key</th>
+                        <th style="padding-left:1rem;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for user in users %}
                     <tr>
-                        <td class="text-secondary small">{{ user.id }}</td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="ca-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0;">
                                     {% if user.profile_pic %}
                                     <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt=""
                                         style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
-                                    {% else %}
-                                    {{ user.username[0].upper() }}
-                                    {% endif %}
+                                    {% else %}{{ user.username[0].upper() }}{% endif %}
                                 </div>
-                                <span class="fw-medium">{{ user.username }}</span>
+                                <div>
+                                    <div class="fw-medium">{{ user.full_name or user.username }}</div>
+                                </div>
                             </div>
                         </td>
-                        <td>{{ user.full_name or '—' }}</td>
+                        <td class="text-secondary small align-middle">@{{ user.username }}</td>
                         <td>
-                            <span class="badge bg-{{ 'primary' if user.role == 'Admin' else 'secondary' }}">
-                                {{ user.role }}
-                            </span>
+                            <form action="/users/edit/{{ user.id }}" method="POST" class="d-inline">
+                                <input type="hidden" name="action" value="update_role">
+                                <select name="role" onchange="this.form.submit()" class="form-select ca-inline-select">
+                                    <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                    <option value="service" {% if user.role == 'service' %}selected{% endif %}>Service</option>
+                                </select>
+                            </form>
                         </td>
                         <td>
-                            <div class="d-flex gap-2 flex-wrap align-items-center">
+                            {% if user.is_active %}
+                            <span class="badge" style="background:#238636;">Active</span>
+                            {% else %}
+                            <span class="badge" style="background:#6e7681;">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.key_value %}
+                            <div class="d-flex flex-column gap-0">
+                                <code class="text-secondary" style="font-size:.7rem;">
+                                    {{ user.key_prefix }}••••
+                                </code>
+                                <span class="text-secondary" style="font-size:.7rem;">
+                                    Last used: {{ user.last_used_at.strftime('%Y-%m-%d') if user.last_used_at else 'Never' }}
+                                </span>
+                            </div>
+                            {% else %}
+                            <span class="text-secondary small">No key</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding-left:1rem;">
+                            <div class="d-flex gap-1 flex-wrap align-items-center">
+
+                                <!-- Enable / Disable -->
+                                {% if current_user.id != user.id %}
                                 <form action="/users/edit/{{ user.id }}" method="POST" class="d-inline">
-                                    <input type="hidden" name="action" value="update_role">
-                                    <select name="role" onchange="this.form.submit()" class="form-select ca-inline-select">
-                                        <option value="User" {% if user.role == 'User' %}selected{% endif %}>User</option>
-                                        <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Admin</option>
-                                    </select>
+                                    <input type="hidden" name="action" value="{{ 'disable' if user.is_active else 'enable' }}">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-{{ 'warning' if user.is_active else 'success' }}">
+                                        <i class="bi bi-{{ 'slash-circle' if user.is_active else 'check-circle' }} me-1"></i>{{ 'Disable' if user.is_active else 'Enable' }}
+                                    </button>
                                 </form>
+                                {% endif %}
+
+                                <!-- Reset password -->
                                 <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm"
                                     onclick="togglePasswordReset({{ user.id }})">
-                                    <i class="bi bi-key me-1"></i>Pass
+                                    <i class="bi bi-key me-1"></i>Reset
                                 </button>
+
+                                <!-- API Key: regenerate -->
+                                <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-inline"
+                                    onsubmit="return confirm('{{ 'Regenerate' if user.key_value else 'Generate' }} API key for {{ user.username }}?');">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="min-width:6.5rem;">
+                                        <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regen Key' if user.key_value else 'Gen Key' }}
+                                    </button>
+                                </form>
+
+                                <!-- API Key: delete -->
+                                {% if user.key_value %}
+                                <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-inline"
+                                    onsubmit="return confirm('Delete API key for {{ user.username }}?');">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger">
+                                        <i class="bi bi-key-fill me-1"></i>Del Key
+                                    </button>
+                                </form>
+                                {% else %}
+                                <button type="button" class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="opacity:.4;cursor:default;">
+                                    <i class="bi bi-key-fill me-1"></i>Del Key
+                                </button>
+                                {% endif %}
+
+                                <!-- Delete user -->
                                 {% if current_user.id != user.id %}
                                 <form action="/users/delete/{{ user.id }}" method="POST" class="d-inline"
                                     onsubmit="return confirm('Delete user ' + {{ user.username | tojson }} + '?');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm">
-                                        <i class="bi bi-trash3"></i>
+                                        <i class="bi bi-trash3 me-1"></i>Delete
                                     </button>
                                 </form>
                                 {% endif %}
                             </div>
+
                             <!-- Reset Password Form -->
                             <div id="reset-password-{{ user.id }}" style="display:none;" class="mt-2">
                                 <form action="/users/edit/{{ user.id }}" method="POST" class="d-flex gap-2">

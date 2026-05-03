@@ -1,10 +1,55 @@
 {% extends 'base.html' %}
-{% block title %}API Audit – Chronomancers Archives{% endblock %}
-{% block page_title %}API Audit Log{% endblock %}
+{% block title %}Audit – Chronomancers Archives{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <span class="text-secondary small">{{ total }} total event{{ 's' if total != 1 else '' }}</span>
+
+<!-- Filters -->
+<form method="GET" action="/audit" class="row g-2 mb-3 align-items-end">
+    <div class="col-md-3">
+        <label class="form-label text-secondary small mb-1">Action</label>
+        <select name="action" class="form-select form-select-sm ca-input" onchange="this.form.submit()">
+            <option value="">All actions</option>
+            {% for a in action_choices %}
+            <option value="{{ a }}" {% if f_action == a %}selected{% endif %}>
+                {% if a == 'api_call' %}API Call
+                {% elif a == 'key_generated' %}Key Created
+                {% elif a == 'key_regenerated' %}Key Regen
+                {% elif a == 'key_deleted' %}Key Deleted
+                {% elif a == 'auth_failed' %}Auth Failed
+                {% elif a == 'login_success' %}Login Success
+                {% elif a == 'login_failed' %}Login Failed
+                {% else %}{{ a }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3 position-relative">
+        <label class="form-label text-secondary small mb-1">Username</label>
+        <input type="text" name="username" class="form-control form-control-sm ca-input"
+               placeholder="Search username..." value="{{ f_username }}">
+    </div>
+    <div class="col-md-3 position-relative">
+        <label class="form-label text-secondary small mb-1">IP Address</label>
+        <input type="text" name="ip" class="form-control form-control-sm ca-input"
+               placeholder="Search IP..." value="{{ f_ip }}">
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-sm btn-primary w-100">
+            <i class="bi bi-funnel me-1"></i>Filter
+        </button>
+    </div>
+    {% if f_action or f_username or f_ip %}
+    <div class="col-md-1">
+        <a href="/audit" class="btn btn-sm btn-outline-secondary w-100" title="Clear filters">
+            <i class="bi bi-x-lg"></i>
+        </a>
+    </div>
+    {% endif %}
+</form>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-secondary small">{{ total }} event{{ 's' if total != 1 else '' }}{% if f_action or f_username or f_ip %} (filtered){% endif %}</span>
     <a href="/api/docs" target="_blank" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-book me-1"></i>API Docs
     </a>
@@ -17,11 +62,10 @@
                 <thead>
                     <tr>
                         <th style="width:160px;">Date</th>
-                        <th style="width:120px;">Action</th>
+                        <th style="width:130px;">Action</th>
                         <th>User</th>
                         <th>IP</th>
-                        <th>Endpoint</th>
-                        <th>Params</th>
+                        <th>Endpoint / Info</th>
                         <th style="width:80px;">Status</th>
                     </tr>
                 </thead>
@@ -32,51 +76,69 @@
                         <td class="text-secondary">{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                         <td>
                             {% if action == 'key_generated' %}
-                            <span class="badge" style="background:#238636;color:#fff;">Key Created</span>
+                            <span class="badge" style="background:#238636;">Key Created</span>
                             {% elif action == 'key_regenerated' %}
-                            <span class="badge" style="background:#d29922;color:#fff;">Key Regen</span>
+                            <span class="badge" style="background:#d29922;">Key Regen</span>
+                            {% elif action == 'key_deleted' %}
+                            <span class="badge" style="background:#6e7681;">Key Deleted</span>
                             {% elif action == 'auth_failed' %}
-                            <span class="badge" style="background:#da3633;color:#fff;">Auth Failed</span>
+                            <span class="badge" style="background:#da3633;">Auth Failed</span>
+                            {% elif action == 'login_success' %}
+                            <span class="badge" style="background:#1f6feb;">Login OK</span>
+                            {% elif action == 'login_failed' %}
+                            <span class="badge" style="background:#da3633;">Login Failed</span>
                             {% else %}
-                            <span class="badge" style="background:#1f6feb;color:#fff;">API Call</span>
+                            <span class="badge" style="background:#388bfd22;color:#79c0ff;border:1px solid #388bfd55;">API Call</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if log.username %}
-                                <span class="fw-medium">{{ log.full_name or log.username }}</span>
-                                <span class="text-secondary ms-1">@{{ log.username }}</span>
+                            <span class="fw-medium">{{ log.full_name or log.username }}</span>
+                            <span class="text-secondary ms-1 small">@{{ log.username }}</span>
                             {% else %}
-                                <span class="text-secondary small">-</span>
+                            {% if log.params %}
+                            {% set p = log.params | tojson %}
+                            <span class="text-secondary small font-monospace">
+                                {% if 'username' in log.params %}
+                                {{ log.params | replace('"','') | truncate(30) }}
+                                {% else %}-{% endif %}
+                            </span>
+                            {% else %}-{% endif %}
                             {% endif %}
                         </td>
-                        <td class="text-secondary font-monospace">{{ log.ip_address or '-' }}</td>
-                        <td class="font-monospace text-secondary">{{ log.endpoint or '-' }}</td>
-                        <td class="text-secondary">
+                        <td class="text-secondary font-monospace small">{{ log.ip_address or '-' }}</td>
+                        <td class="text-secondary small">
+                            {% if action in ('login_success','login_failed','key_generated','key_regenerated','key_deleted') %}
                             {% if log.params and log.params != '{}' %}
                             <code style="font-size:.75rem;">{{ log.params }}</code>
                             {% else %}-{% endif %}
+                            {% else %}
+                            <span class="font-monospace">{{ log.endpoint or '-' }}</span>
+                            {% if log.params and log.params != '{}' %}
+                            <code class="ms-1" style="font-size:.75rem;">{{ log.params }}</code>
+                            {% endif %}
+                            {% endif %}
                         </td>
                         <td>
                             {% if log.status_code %}
                             {% set sc = log.status_code %}
-                            <span class="badge" style="background:{% if sc == 200 %}#238636{% elif sc in [401,403] %}#da3633{% else %}#d29922{% endif %};color:#fff;">
-                                {{ sc }}
-                            </span>
+                            <span class="badge" style="background:{% if sc == 200 %}#238636{% elif sc in [401,403] %}#da3633{% else %}#d29922{% endif %};">{{ sc }}</span>
                             {% else %}-{% endif %}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center text-secondary py-4">No events recorded yet.</td>
+                        <td colspan="6" class="text-center text-secondary py-4">No events recorded yet.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% if pages > 1 %}
-        <div class="d-flex justify-content-end gap-2 p-3">
+        <div class="d-flex justify-content-end gap-2 p-3 flex-wrap">
             {% for p in range(1, pages + 1) %}
-            <a href="?page={{ p }}" class="btn btn-sm {{ 'btn-primary' if p == page else 'btn-outline-secondary' }}">{{ p }}</a>
+            <a href="?page={{ p }}&action={{ f_action }}&username={{ f_username }}&ip={{ f_ip }}"
+               class="btn btn-sm {{ 'btn-primary' if p == page else 'btn-outline-secondary' }}">{{ p }}</a>
             {% endfor %}
         </div>
         {% endif %}

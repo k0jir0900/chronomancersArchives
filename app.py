@@ -1,6 +1,7 @@
 import os
 import secrets
 import functools
+import hashlib
 import json
 import atexit
 from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify
@@ -193,19 +194,48 @@ def init_db():
                 INDEX idx_audit_user (user_id)
             )
         """)
-        cursor.execute("""
-            ALTER TABLE api_audit_log
-            MODIFY COLUMN status_code INT NULL
-        """)
+        try:
+            cursor.execute("ALTER TABLE api_audit_log MODIFY COLUMN status_code INT NULL")
+        except mysql.connector.Error:
+            pass
         try:
             cursor.execute("ALTER TABLE api_audit_log ADD COLUMN action VARCHAR(50) DEFAULT 'api_call' AFTER api_key_id")
         except mysql.connector.Error:
             pass
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_active TINYINT NOT NULL DEFAULT 1")
+        except mysql.connector.Error:
+            pass
+        # Migrate roles to lowercase
+        try:
+            cursor.execute("UPDATE users SET role = LOWER(role) WHERE role != LOWER(role)")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE archives ADD COLUMN mitre JSON NULL")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(11) NULL")
+        except mysql.connector.Error:
+            pass
+        # Migrate existing plaintext keys to SHA-256 hashes
+        plain_cursor = conn.cursor()
+        plain_cursor.execute("SELECT id, key_value FROM api_keys WHERE LENGTH(key_value) = 67")
+        for row in plain_cursor.fetchall():
+            row_id, plaintext = row
+            key_hash = hashlib.sha256(plaintext.encode()).hexdigest()
+            prefix = plaintext[:7]
+            plain_cursor.execute(
+                "UPDATE api_keys SET key_value = %s, key_prefix = %s WHERE id = %s",
+                (key_hash, prefix, row_id)
+            )
+        plain_cursor.close()
 
         hashed_password = generate_password_hash('admin')
         cursor.execute(
             "INSERT IGNORE INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
-            ('admin', 'Admin', hashed_password, 'Admin')
+            ('admin', 'Admin', hashed_password, 'admin')
         )
         conn.commit()
         if cursor.rowcount:
@@ -488,7 +518,47 @@ def history():
     conn.close()
 
     is_active_search = bool(selected_rule or selected_company or selected_environment or selected_status)
-    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata, mitre_info=mitre_info)
+    latest_id = timeline_data[0]['id'] if timeline_data else None
+    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata, mitre_info=mitre_info, latest_id=latest_id)
+
+@app.route('/history/edit-mitre', methods=['POST'])
+@login_required
+def history_edit_mitre():
+    record_id = request.form.get('record_id')
+    mitre_raw = request.form.get('mitre_json', '').strip()
+    redirect_url = request.form.get('redirect_url', '/history')
+
+    if not record_id:
+        flash('Invalid record.', 'error')
+        return redirect(redirect_url)
+
+    mitre_data = None
+    if mitre_raw:
+        try:
+            parsed = json.loads(mitre_raw)
+            if parsed:
+                mitre_data = json.dumps(parsed)
+        except (json.JSONDecodeError, ValueError):
+            flash('Invalid MITRE data.', 'error')
+            return redirect(redirect_url)
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(redirect_url)
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE archives SET mitre = %s WHERE id = %s", (mitre_data, record_id))
+        conn.commit()
+        flash('MITRE ATT&CK updated.', 'success')
+    except Exception as e:
+        flash(f'Database error: {e}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(redirect_url)
 
 @app.route('/diff')
 @login_required
@@ -540,9 +610,9 @@ def diff_rules():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
         conn = get_db_connection()
         user = None
         if conn:
@@ -551,15 +621,29 @@ def login():
             user = cursor.fetchone()
             cursor.close()
             conn.close()
-        
+
         if user and check_password_hash(user['password_hash'], password):
+            if not user.get('is_active', 1):
+                _log_api_audit(user['id'], None, None, 'login_failed',
+                               extra_params={'reason': 'account_disabled', 'username': username})
+                flash('Account is disabled.', 'error')
+                return render_template('login.html')
+            if user.get('role') == 'service':
+                _log_api_audit(user['id'], None, None, 'login_failed',
+                               extra_params={'reason': 'service_account', 'username': username})
+                flash('Service accounts cannot log in via web.', 'error')
+                return render_template('login.html')
             session.clear()
             session['user_id'] = user['id']
             session['username'] = user['username']
+            _log_api_audit(user['id'], None, None, 'login_success',
+                           extra_params={'username': username})
             return redirect(url_for('home'))
-        
+
+        _log_api_audit(user['id'] if user else None, None, None, 'login_failed',
+                       extra_params={'username': username})
         flash('Invalid username or password.', 'error')
-    
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -787,7 +871,7 @@ def profile():
         except:
             cursor.execute("SELECT username, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
         user_data = cursor.fetchone()
-        cursor.execute("SELECT key_value, created_at, last_used_at FROM api_keys WHERE user_id = %s", (session['user_id'],))
+        cursor.execute("SELECT key_value, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = %s", (session['user_id'],))
         api_key_data = cursor.fetchone()
     finally:
         if cursor:
@@ -823,7 +907,7 @@ def admin_required(view):
             cursor.close()
             conn.close()
             
-        if not user or user['role'] != 'Admin':
+        if not user or user['role'] != 'admin':
             flash('Admin privileges required.', 'error')
             return redirect(url_for('home'))
             
@@ -840,11 +924,18 @@ def users():
         return redirect(url_for('home'))
     
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, username, full_name, role, profile_pic FROM users ORDER BY username")
+    cursor.execute("""
+        SELECT u.id, u.username, u.full_name, u.role, u.profile_pic,
+               COALESCE(u.is_active, 1) as is_active,
+               k.key_value, k.key_prefix, k.created_at as key_created, k.last_used_at
+        FROM users u
+        LEFT JOIN api_keys k ON k.user_id = u.id
+        ORDER BY u.username
+    """)
     users_data = cursor.fetchall()
     cursor.close()
     conn.close()
-    
+
     return render_template('users.html', users=users_data)
 
 @app.route('/users/add', methods=['POST'])
@@ -894,7 +985,7 @@ def edit_user(user_id):
             new_role = request.form.get('role')
             cursor.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
             flash('User role updated.', 'success')
-            
+
         elif action == 'reset_password':
             new_password = request.form.get('password')
             if new_password:
@@ -903,6 +994,11 @@ def edit_user(user_id):
                 flash('User password reset.', 'success')
             else:
                 flash('Password cannot be empty.', 'error')
+
+        elif action in ('enable', 'disable'):
+            val = 1 if action == 'enable' else 0
+            cursor.execute("UPDATE users SET is_active = %s WHERE id = %s", (val, user_id))
+            flash(f'User {"enabled" if val else "disabled"}.', 'success')
                 
         conn.commit()
     except mysql.connector.Error as err:
@@ -934,6 +1030,65 @@ def delete_user(user_id):
             cursor.close()
             conn.close()
             
+    return redirect(url_for('users'))
+
+
+@app.route('/users/api-key/regenerate/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_regenerate_api_key(user_id):
+    new_key = 'ca_' + secrets.token_hex(32)
+    key_hash = hashlib.sha256(new_key.encode()).hexdigest()
+    key_prefix = new_key[:7]
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('users'))
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO api_keys (user_id, key_value, key_prefix) VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE key_value = VALUES(key_value), key_prefix = VALUES(key_prefix), created_at = NOW(), last_used_at = NULL",
+            (user_id, key_hash, key_prefix)
+        )
+        conn.commit()
+        action = 'key_generated' if cursor.rowcount == 1 else 'key_regenerated'
+        cursor.execute("SELECT id FROM api_keys WHERE user_id = %s", (user_id,))
+        key_row = cursor.fetchone()
+        _log_api_audit(user_id, key_row['id'] if key_row else None, None, action)
+        flash(f'API key {"generated" if action == "key_generated" else "regenerated"} — new key: {new_key}', 'success')
+    except mysql.connector.Error as err:
+        flash(f'Error: {err}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('users'))
+
+
+@app.route('/users/api-key/delete/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_api_key(user_id):
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('users'))
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id FROM api_keys WHERE user_id = %s", (user_id,))
+        key_row = cursor.fetchone()
+        if key_row:
+            _log_api_audit(user_id, key_row['id'], None, 'key_deleted')
+            cursor.execute("DELETE FROM api_keys WHERE user_id = %s", (user_id,))
+            conn.commit()
+            flash('API key deleted.', 'success')
+        else:
+            flash('No API key found for this user.', 'error')
+    except mysql.connector.Error as err:
+        flash(f'Error: {err}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
     return redirect(url_for('users'))
 
 
@@ -1261,15 +1416,18 @@ def inject_schedule_config():
 
 # --- API KEY & AUDIT ---
 
-def _log_api_audit(user_id, api_key_id, status_code, action='api_call'):
+def _log_api_audit(user_id, api_key_id, status_code, action='api_call', extra_params=None):
     try:
         conn = get_db_connection()
         if not conn:
             return
+        params = dict(request.args)
+        if extra_params:
+            params.update(extra_params)
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO api_audit_log (user_id, api_key_id, action, ip_address, endpoint, params, status_code) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (user_id, api_key_id, action, request.remote_addr, request.path, json.dumps(dict(request.args)), status_code)
+            (user_id, api_key_id, action, request.remote_addr, request.path, json.dumps(params), status_code)
         )
         conn.commit()
         cursor.close()
@@ -1289,7 +1447,8 @@ def require_api_key(f):
         if not conn:
             return jsonify({'error': 'Service unavailable'}), 503
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, user_id FROM api_keys WHERE key_value = %s", (key,))
+        key_hash = hashlib.sha256(key.encode()).hexdigest()
+        cursor.execute("SELECT id, user_id FROM api_keys WHERE key_value = %s", (key_hash,))
         row = cursor.fetchone()
         if not row:
             cursor.close()
@@ -1311,6 +1470,8 @@ def require_api_key(f):
 @login_required
 def generate_api_key():
     new_key = 'ca_' + secrets.token_hex(32)
+    key_hash = hashlib.sha256(new_key.encode()).hexdigest()
+    key_prefix = new_key[:7]
     conn = get_db_connection()
     if not conn:
         flash('Database connection failed.', 'error')
@@ -1318,9 +1479,9 @@ def generate_api_key():
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "INSERT INTO api_keys (user_id, key_value) VALUES (%s, %s) "
-            "ON DUPLICATE KEY UPDATE key_value = VALUES(key_value), created_at = NOW(), last_used_at = NULL",
-            (session['user_id'], new_key)
+            "INSERT INTO api_keys (user_id, key_value, key_prefix) VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE key_value = VALUES(key_value), key_prefix = VALUES(key_prefix), created_at = NOW(), last_used_at = NULL",
+            (session['user_id'], key_hash, key_prefix)
         )
         conn.commit()
         # rowcount=1 means INSERT (new key), rowcount=2 means UPDATE (regenerated)
@@ -1545,25 +1706,55 @@ def audit():
     except ValueError:
         page = 1
     per_page = 50
-    offset = (page - 1) * per_page
+
+    f_action   = request.args.get('action', '').strip()
+    f_username = request.args.get('username', '').strip()
+    f_ip       = request.args.get('ip', '').strip()
+
+    conditions, params = [], []
+    if f_action:
+        conditions.append("l.action = %s")
+        params.append(f_action)
+    if f_username:
+        conditions.append("u.username LIKE %s")
+        params.append(f'%{f_username}%')
+    if f_ip:
+        conditions.append("l.ip_address LIKE %s")
+        params.append(f'%{f_ip}%')
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT COUNT(*) as total FROM api_audit_log")
+    cursor.execute(f"""
+        SELECT COUNT(*) as total
+        FROM api_audit_log l
+        LEFT JOIN users u ON l.user_id = u.id
+        {where}
+    """, tuple(params))
     total = cursor.fetchone()['total']
-    cursor.execute("""
-        SELECT l.id, l.ip_address, l.endpoint, l.params, l.status_code, l.created_at,
+
+    offset = (page - 1) * per_page
+    cursor.execute(f"""
+        SELECT l.id, l.action, l.ip_address, l.endpoint, l.params, l.status_code, l.created_at,
                u.username, u.full_name
         FROM api_audit_log l
         LEFT JOIN users u ON l.user_id = u.id
+        {where}
         ORDER BY l.created_at DESC
         LIMIT %s OFFSET %s
-    """, (per_page, offset))
+    """, tuple(params) + (per_page, offset))
     logs = cursor.fetchall()
+
+    cursor.execute("SELECT DISTINCT action FROM api_audit_log ORDER BY action")
+    action_choices = [r['action'] for r in cursor.fetchall()]
+
     cursor.close()
     conn.close()
 
     pages = max(1, (total + per_page - 1) // per_page)
-    return render_template('audit.html', logs=logs, page=page, pages=pages, total=total)
+    return render_template('audit.html', logs=logs, page=page, pages=pages, total=total,
+                           f_action=f_action, f_username=f_username, f_ip=f_ip,
+                           action_choices=action_choices)
 
 
 if __name__ == '__main__':

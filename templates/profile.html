@@ -23,12 +23,16 @@
                     </div>
                 </div>
                 <h5 class="mb-1">{{ user.full_name if user.full_name else user.username }}</h5>
-                <span class="badge bg-{{ 'primary' if user.role == 'Admin' else 'secondary' }}">
+                <span class="badge bg-{{ 'primary' if user.role == 'admin' else 'warning' if user.role == 'service' else 'secondary' }}">
                     {{ user.role | upper }}
                 </span>
                 <p class="text-secondary small mt-2 mb-0">@{{ user.username }}</p>
             </div>
         </div>
+
+        <a href="/api/docs" class="btn btn-outline-secondary w-100 mt-3">
+            <i class="bi bi-book me-2"></i>API Documentation
+        </a>
     </div>
 
     <!-- Forms -->
@@ -94,7 +98,7 @@
                     <label class="form-label text-secondary small">Current Key</label>
                     <div class="d-flex align-items-center gap-2">
                         <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:.8rem;">
-                            {{ api_key.key_value[:7] }}••••••••••••••••••••••••••••••••••••••••••••{{ api_key.key_value[-4:] }}
+                            {{ api_key.key_prefix }}••••
                         </code>
                     </div>
                     <div class="form-text">Generated {{ api_key.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
