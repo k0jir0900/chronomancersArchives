@@ -116,55 +116,58 @@
                             <span class="text-secondary small">No key</span>
                             {% endif %}
                         </td>
-                        <td style="padding-left:1rem;">
-                            <div class="d-flex gap-1 flex-wrap align-items-center">
+                        <td>
+                            <div class="d-flex gap-2 align-items-center">
 
-                                <!-- Enable / Disable -->
                                 {% if current_user.id != user.id %}
-                                <form action="/users/edit/{{ user.id }}" method="POST" class="d-inline">
+                                <form action="/users/edit/{{ user.id }}" method="POST" class="d-flex">
                                     <input type="hidden" name="action" value="{{ 'disable' if user.is_active else 'enable' }}">
-                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-{{ 'warning' if user.is_active else 'success' }}">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-{{ 'warning' if user.is_active else 'success' }}" style="width:5.5rem;">
                                         <i class="bi bi-{{ 'slash-circle' if user.is_active else 'check-circle' }} me-1"></i>{{ 'Disable' if user.is_active else 'Enable' }}
                                     </button>
                                 </form>
+                                {% else %}
+                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:5.5rem;opacity:.2;">
+                                    <i class="bi bi-slash-circle me-1"></i>Disable
+                                </button>
                                 {% endif %}
 
-                                <!-- Reset password -->
-                                <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm"
+                                <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm" style="width:4.5rem;"
                                     onclick="togglePasswordReset({{ user.id }})">
                                     <i class="bi bi-key me-1"></i>Reset
                                 </button>
 
-                                <!-- API Key: regenerate -->
-                                <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-inline"
+                                <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('{{ 'Regenerate' if user.key_value else 'Generate' }} API key for {{ user.username }}?');">
-                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="min-width:6.5rem;">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="width:6.5rem;">
                                         <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regen Key' if user.key_value else 'Gen Key' }}
                                     </button>
                                 </form>
 
-                                <!-- API Key: delete -->
                                 {% if user.key_value %}
-                                <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-inline"
+                                <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete API key for {{ user.username }}?');">
-                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger" style="width:5.5rem;">
                                         <i class="bi bi-key-fill me-1"></i>Del Key
                                     </button>
                                 </form>
                                 {% else %}
-                                <button type="button" class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="opacity:.4;cursor:default;">
+                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:5.5rem;opacity:.2;">
                                     <i class="bi bi-key-fill me-1"></i>Del Key
                                 </button>
                                 {% endif %}
 
-                                <!-- Delete user -->
                                 {% if current_user.id != user.id %}
-                                <form action="/users/delete/{{ user.id }}" method="POST" class="d-inline"
+                                <form action="/users/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete user ' + {{ user.username | tojson }} + '?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm" style="width:5rem;">
                                         <i class="bi bi-trash3 me-1"></i>Delete
                                     </button>
                                 </form>
+                                {% else %}
+                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:5rem;opacity:.2;">
+                                    <i class="bi bi-trash3 me-1"></i>Delete
+                                </button>
                                 {% endif %}
                             </div>
 

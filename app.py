@@ -252,14 +252,14 @@ def inject_user():
         if conn:
             cursor = conn.cursor(dictionary=True)
             try:
-                cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
+                cursor.execute("SELECT id, username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
                 user = cursor.fetchone()
             except:
                 try:
-                    cursor.execute("SELECT username, role, profile_pic FROM users WHERE id = %s", (session['user_id'],))
+                    cursor.execute("SELECT id, username, role, profile_pic FROM users WHERE id = %s", (session['user_id'],))
                     user = cursor.fetchone()
                 except:
-                    cursor.execute("SELECT username, role FROM users WHERE id = %s", (session['user_id'],))
+                    cursor.execute("SELECT id, username, role FROM users WHERE id = %s", (session['user_id'],))
                     user = cursor.fetchone()
             
             cursor.close()
