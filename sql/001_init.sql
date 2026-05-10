@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS archives (
     rule_content TEXT NOT NULL,
     modified_by VARCHAR(100),
     mitre JSON DEFAULT NULL,
+    siem VARCHAR(50) DEFAULT NULL,
+    tags JSON DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_rule_name (rule_name),
     INDEX idx_created_at (created_at),
@@ -41,4 +43,13 @@ CREATE TABLE IF NOT EXISTS mitre_techniques (
 CREATE TABLE IF NOT EXISTS mitre_sync (
     id INT AUTO_INCREMENT PRIMARY KEY,
     last_updated TIMESTAMP DEFAULT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tags_pool (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    value VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_cat_value (category, value),
+    INDEX idx_tag_category (category)
 );

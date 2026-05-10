@@ -17,7 +17,13 @@
       "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\app.py\" -Pattern \"CREATE TABLE|archives|mitre\" | Select-Object -First 40 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
       "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\app.py\" -Pattern \"^import|^from\" | Select-Object -First 20 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
       "PowerShell(Select-String -Path \"D:\\\\Github\\\\chronomancersArchives\\\\templates\\\\profile.html\" -Pattern \"key_value|api_key|revealed_key|key_prefix\" | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line\\)\" })",
-      "PowerShell(Get-Content *)"
+      "PowerShell(Get-Content *)",
+      "Bash(docker compose *)",
+      "Bash(docker run *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker run *)",
+      "Bash(git *)",
+      "Bash(docker exec *)",
+      "Bash(grep -oE '\\(baseline|os_family|application_family|hardware_family|network_family|vendor|criticality\\)[^<]{0,80}' /tmp/hist_detail.html)"
     ]
   }
 }

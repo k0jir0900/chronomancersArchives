@@ -216,6 +216,43 @@ def init_db():
         except mysql.connector.Error:
             pass
         try:
+            cursor.execute("ALTER TABLE archives ADD COLUMN siem VARCHAR(50) NULL")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE archives ADD COLUMN tags JSON NULL")
+        except mysql.connector.Error:
+            pass
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tags_pool (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                category VARCHAR(50) NOT NULL,
+                value VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_cat_value (category, value),
+                INDEX idx_tag_category (category)
+            )
+        """)
+        seed_tags = [
+            ('baseline', 'gold'), ('baseline', 'silver'), ('baseline', 'bronze'), ('baseline', 'custom'),
+            ('hardware_family', 'server'), ('hardware_family', 'workstation'), ('hardware_family', 'network_device'),
+            ('hardware_family', 'mobile'), ('hardware_family', 'iot'), ('hardware_family', 'scada'), ('hardware_family', 'plc'),
+            ('os_family', 'windows'), ('os_family', 'linux'), ('os_family', 'macos'), ('os_family', 'unix'),
+            ('os_family', 'android'), ('os_family', 'ios'), ('os_family', 'embedded'),
+            ('network_family', 'firewall'), ('network_family', 'router'), ('network_family', 'switch'),
+            ('network_family', 'load_balancer'), ('network_family', 'proxy'), ('network_family', 'ids_ips'),
+            ('application_family', 'web'), ('application_family', 'database'), ('application_family', 'email'),
+            ('application_family', 'file_share'), ('application_family', 'identity'),
+            ('application_family', 'virtualization'), ('application_family', 'container'),
+            ('vendor', 'microsoft'), ('vendor', 'cisco'), ('vendor', 'palo_alto'), ('vendor', 'fortinet'),
+            ('vendor', 'vmware'), ('vendor', 'redhat'), ('vendor', 'ubuntu'), ('vendor', 'debian'), ('vendor', 'oracle'),
+            ('criticality', 'critical'), ('criticality', 'high'), ('criticality', 'medium'), ('criticality', 'low'),
+        ]
+        cursor.executemany(
+            "INSERT IGNORE INTO tags_pool (category, value) VALUES (%s, %s)",
+            seed_tags
+        )
+        try:
             cursor.execute("ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(11) NULL")
         except mysql.connector.Error:
             pass
@@ -480,7 +517,22 @@ def history():
                 current_date += timedelta(days=1)
     
     mitre_info = []
+    tags_info = []
+    siem_info = None
     if timeline_data:
+        siem_info = timeline_data[0].get('siem')
+        latest_tags = timeline_data[0].get('tags')
+        if latest_tags:
+            if isinstance(latest_tags, str):
+                try:
+                    latest_tags = json.loads(latest_tags)
+                except (json.JSONDecodeError, ValueError):
+                    latest_tags = []
+            if isinstance(latest_tags, list):
+                for key in latest_tags:
+                    if isinstance(key, str) and ':' in key:
+                        cat, val = key.split(':', 1)
+                        tags_info.append({'category': cat, 'value': val})
         latest_mitre = timeline_data[0].get('mitre')
         if latest_mitre:
             if isinstance(latest_mitre, str):
@@ -519,7 +571,7 @@ def history():
 
     is_active_search = bool(selected_rule or selected_company or selected_environment or selected_status)
     latest_id = timeline_data[0]['id'] if timeline_data else None
-    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata, mitre_info=mitre_info, latest_id=latest_id)
+    return render_template('history.html', rules=rules, companies=companies, environments=environments, selected_rule=selected_rule, selected_company=selected_company, selected_environment=selected_environment, selected_status=selected_status, timeline=timeline_data, summary=summary, chart_data=chart_data if is_active_search and timeline_data else None, is_active_search=is_active_search, all_rules_metadata=all_rules_metadata, mitre_info=mitre_info, tags_info=tags_info, siem_info=siem_info, tag_categories=TAG_CATEGORIES, latest_id=latest_id)
 
 @app.route('/history/edit-mitre', methods=['POST'])
 @login_required
@@ -552,6 +604,66 @@ def history_edit_mitre():
         cursor.execute("UPDATE archives SET mitre = %s WHERE id = %s", (mitre_data, record_id))
         conn.commit()
         flash('MITRE ATT&CK updated.', 'success')
+    except Exception as e:
+        flash(f'Database error: {e}', 'error')
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(redirect_url)
+
+
+@app.route('/history/edit-tags', methods=['POST'])
+@login_required
+def history_edit_tags():
+    record_id = request.form.get('record_id')
+    tags_raw = request.form.get('tags_json', '').strip()
+    redirect_url = request.form.get('redirect_url', '/history')
+
+    if not record_id:
+        flash('Invalid record.', 'error')
+        return redirect(redirect_url)
+
+    tags_data = None
+    parsed = None
+    if tags_raw:
+        try:
+            parsed = json.loads(tags_raw)
+            if parsed:
+                tags_data = json.dumps(parsed)
+        except (json.JSONDecodeError, ValueError):
+            flash('Invalid tag data.', 'error')
+            return redirect(redirect_url)
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(redirect_url)
+
+    cursor = conn.cursor()
+    try:
+        if isinstance(parsed, list):
+            clean = []
+            for key in parsed:
+                if not isinstance(key, str) or ':' not in key:
+                    continue
+                cat, val = key.split(':', 1)
+                cat = cat.strip()[:50]
+                val = val.strip()[:255]
+                if not cat or not val or cat not in _TAG_CATEGORY_KEYS:
+                    continue
+                clean.append(f"{cat}:{val}")
+                try:
+                    cursor.execute(
+                        "INSERT IGNORE INTO tags_pool (category, value) VALUES (%s, %s)",
+                        (cat, val)
+                    )
+                except mysql.connector.Error:
+                    pass
+            tags_data = json.dumps(clean) if clean else None
+        cursor.execute("UPDATE archives SET tags = %s WHERE id = %s", (tags_data, record_id))
+        conn.commit()
+        flash('Tags updated.', 'success')
     except Exception as e:
         flash(f'Database error: {e}', 'error')
     finally:
@@ -657,6 +769,7 @@ def register():
     if request.method == 'POST':
         rule_name = request.form.get('rule_name')
         company = request.form.get('company')
+        siem = request.form.get('siem') or None
         environment = request.form.get('environment')
         action_type = request.form.get('action_type')
         rule_status = request.form.get('rule_status', 'active')
@@ -672,7 +785,7 @@ def register():
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor(dictionary=True)
-            
+
             try:
                 cursor.execute("SELECT full_name, username FROM users WHERE id = %s", (session['user_id'],))
                 user_info = cursor.fetchone()
@@ -690,9 +803,37 @@ def register():
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, mitre) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name, mitre_data)
-            
+            tags_raw = request.form.get('tags_json', '').strip()
+            tags_data = None
+            if tags_raw:
+                try:
+                    parsed = json.loads(tags_raw)
+                    if isinstance(parsed, list):
+                        clean = []
+                        for key in parsed:
+                            if not isinstance(key, str) or ':' not in key:
+                                continue
+                            cat, val = key.split(':', 1)
+                            cat = cat.strip()[:50]
+                            val = val.strip()[:255]
+                            if not cat or not val or cat not in _TAG_CATEGORY_KEYS:
+                                continue
+                            clean.append(f"{cat}:{val}")
+                            try:
+                                cursor.execute(
+                                    "INSERT IGNORE INTO tags_pool (category, value) VALUES (%s, %s)",
+                                    (cat, val)
+                                )
+                            except mysql.connector.Error:
+                                pass
+                        if clean:
+                            tags_data = json.dumps(clean)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, mitre, siem, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name, mitre_data, siem, tags_data)
+
             try:
                 cursor.execute(query, values)
                 conn.commit()
@@ -704,7 +845,7 @@ def register():
                 conn.close()
         else:
             flash('Could not connect to database.', 'error')
-        
+
         return redirect(url_for('register'))
 
     return render_template('register.html')
@@ -771,6 +912,97 @@ def api_rule_mitre():
         except (json.JSONDecodeError, ValueError):
             return jsonify(None)
     return jsonify(mitre)
+
+
+TAG_CATEGORIES = [
+    {'key': 'baseline',           'label': 'Baseline'},
+    {'key': 'hardware_family',    'label': 'Hardware Family'},
+    {'key': 'os_family',          'label': 'OS Family'},
+    {'key': 'network_family',     'label': 'Network Family'},
+    {'key': 'application_family', 'label': 'Application Family'},
+    {'key': 'vendor',             'label': 'Vendor'},
+    {'key': 'criticality',        'label': 'Criticality'},
+]
+_TAG_CATEGORY_KEYS = {c['key'] for c in TAG_CATEGORIES}
+
+
+@app.route('/api/tags/categories')
+@login_required
+def api_tag_categories():
+    return jsonify(TAG_CATEGORIES)
+
+
+@app.route('/api/tags', methods=['GET', 'POST'])
+@login_required
+def api_tags():
+    if request.method == 'GET':
+        category = request.args.get('category', '').strip()
+        if not category:
+            return jsonify([])
+        conn = get_db_connection()
+        if not conn:
+            return jsonify([])
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT value FROM tags_pool WHERE category = %s ORDER BY value",
+            (category,)
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify([r['value'] for r in rows])
+
+    payload = request.get_json(silent=True) or {}
+    category = (payload.get('category') or '').strip()
+    value = (payload.get('value') or '').strip()
+    if not category or not value:
+        return jsonify({'error': 'category and value required'}), 400
+    if category not in _TAG_CATEGORY_KEYS:
+        return jsonify({'error': 'invalid category'}), 400
+    if len(value) > 255:
+        return jsonify({'error': 'value too long'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'db unavailable'}), 503
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT IGNORE INTO tags_pool (category, value) VALUES (%s, %s)",
+            (category, value)
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+    return jsonify({'category': category, 'value': value})
+
+
+@app.route('/api/rule/tags')
+@login_required
+def api_rule_tags():
+    rule_name = request.args.get('rule_name', '').strip()
+    if not rule_name:
+        return jsonify(None)
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(None)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT tags FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
+        (rule_name,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if not row or not row['tags']:
+        return jsonify(None)
+    tags = row['tags']
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags)
+        except (json.JSONDecodeError, ValueError):
+            return jsonify(None)
+    return jsonify(tags)
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -1526,7 +1758,7 @@ def api_export_cdu():
     total = cursor.fetchone()['total']
     cursor.execute(
         f"SELECT id, rule_name, company, environment, action_type, rule_status, tuning_driver, "
-        f"ticket, description, rule_content, modified_by, mitre, created_at "
+        f"ticket, description, rule_content, modified_by, mitre, siem, tags, created_at "
         f"FROM archives {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
         tuple(params) + (limit, offset)
     )
@@ -1542,6 +1774,12 @@ def api_export_cdu():
                 mitre = json.loads(mitre)
             except (json.JSONDecodeError, ValueError):
                 mitre = []
+        tags = row['tags']
+        if tags and isinstance(tags, str):
+            try:
+                tags = json.loads(tags)
+            except (json.JSONDecodeError, ValueError):
+                tags = []
         records.append({
             'id': row['id'],
             'rule_name': row['rule_name'],
@@ -1555,6 +1793,8 @@ def api_export_cdu():
             'rule_content': row['rule_content'],
             'modified_by': row['modified_by'],
             'mitre': mitre or [],
+            'siem': row['siem'],
+            'tags': tags or [],
             'created_at': row['created_at'].isoformat() if row['created_at'] else None
         })
 
@@ -1613,6 +1853,12 @@ def api_openapi():
                             "type": "array",
                             "items": {"type": "string"},
                             "example": ["T1110", "T1078:T1078.004"]
+                        },
+                        "siem": {"type": "string", "nullable": True, "example": "crowdstrike"},
+                        "tags": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "example": ["baseline:gold", "os_family:linux"]
                         },
                         "created_at": {"type": "string", "format": "date-time"}
                     }

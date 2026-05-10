@@ -28,6 +28,25 @@
             <!-- Classification -->
             <div class="ca-form-section">
                 <div class="ca-form-field">
+                    <label class="ca-label">SIEM <span class="ca-hint">— Optional</span></label>
+                    <select class="form-select ca-input" name="siem">
+                        <option value="" selected>Select an option</option>
+                        <option value="crowdstrike">CrowdStrike</option>
+                        <option value="ms_sentinel">Microsoft Sentinel</option>
+                        <option value="wazuh">Wazuh</option>
+                        <option value="splunk">Splunk</option>
+                        <option value="qradar">IBM QRadar</option>
+                        <option value="elastic">Elastic Security</option>
+                        <option value="arcsight">ArcSight</option>
+                        <option value="logrhythm">LogRhythm</option>
+                        <option value="securonix">Securonix</option>
+                        <option value="exabeam">Exabeam</option>
+                        <option value="sumo_logic">Sumo Logic</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="ca-form-field">
                     <label class="ca-label">Environment <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="environment" required>
                         <option value="" disabled selected>Select an option</option>
@@ -108,6 +127,28 @@
                     </div>
                     <div id="mitre-tags" class="mitre-tags"></div>
                     <input type="hidden" name="mitre_json" id="mitre-json-input" value="">
+                </div>
+            </div>
+
+            <div class="ca-form-divider"></div>
+
+            <!-- Tags -->
+            <div class="ca-form-section">
+                <div class="ca-form-field">
+                    <label class="ca-label">Tags <span class="ca-hint">— Optional (baseline, hardware family, OS family, etc.)</span></label>
+                    <div class="mitre-add-row">
+                        <select id="tag-category" class="form-select ca-input mitre-select">
+                            <option value="">Loading categories...</option>
+                        </select>
+                        <input id="tag-value" class="form-control ca-input mitre-select" list="tag-value-list"
+                               placeholder="Select or type a new tag" autocomplete="off" disabled>
+                        <datalist id="tag-value-list"></datalist>
+                        <button type="button" class="btn btn-outline-secondary mitre-add-btn" id="tag-add-btn" disabled>
+                            <i class="bi bi-plus-lg"></i> Add
+                        </button>
+                    </div>
+                    <div id="tag-chips" class="mitre-tags"></div>
+                    <input type="hidden" name="tags_json" id="tags-json-input" value="">
                 </div>
             </div>
 
@@ -389,9 +430,135 @@
                 await loadExistingMitre(existing);
             }
         } catch (e) {}
+        try {
+            const resp = await fetch(`/api/rule/tags?rule_name=${encodeURIComponent(ruleName)}`);
+            const existing = await resp.json();
+            if (existing && existing.length) {
+                loadExistingTags(existing);
+            }
+        } catch (e) {}
     });
 
     loadTechniques();
+
+    // ---- Tags ----
+    const tagState = { items: [], categories: [], categoryLabels: {} };
+
+    async function loadCategories() {
+        const sel = document.getElementById('tag-category');
+        try {
+            const resp = await fetch('/api/tags/categories');
+            tagState.categories = await resp.json();
+            sel.innerHTML = '<option value="">-- Select Category --</option>';
+            tagState.categories.forEach(c => {
+                tagState.categoryLabels[c.key] = c.label;
+                const opt = document.createElement('option');
+                opt.value = c.key;
+                opt.textContent = c.label;
+                sel.appendChild(opt);
+            });
+        } catch (e) {
+            sel.innerHTML = '<option value="">Error loading categories</option>';
+        }
+    }
+
+    async function loadTagValues(category) {
+        const list = document.getElementById('tag-value-list');
+        list.innerHTML = '';
+        if (!category) return;
+        try {
+            const resp = await fetch(`/api/tags?category=${encodeURIComponent(category)}`);
+            const values = await resp.json();
+            values.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                list.appendChild(opt);
+            });
+        } catch (e) {}
+    }
+
+    document.getElementById('tag-category').addEventListener('change', function () {
+        const cat = this.value;
+        const input = document.getElementById('tag-value');
+        const addBtn = document.getElementById('tag-add-btn');
+        input.value = '';
+        if (!cat) {
+            input.disabled = true;
+            addBtn.disabled = true;
+            document.getElementById('tag-value-list').innerHTML = '';
+            return;
+        }
+        input.disabled = false;
+        addBtn.disabled = false;
+        loadTagValues(cat);
+    });
+
+    document.getElementById('tag-add-btn').addEventListener('click', async function () {
+        const cat = document.getElementById('tag-category').value;
+        const valInput = document.getElementById('tag-value');
+        const val = valInput.value.trim();
+        if (!cat || !val) return;
+        const key = `${cat}:${val}`;
+        if (tagState.items.find(i => i.key === key)) {
+            valInput.value = '';
+            return;
+        }
+        try {
+            await fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: cat, value: val })
+            });
+        } catch (e) {}
+        const label = `${tagState.categoryLabels[cat] || cat}: ${val}`;
+        tagState.items.push({ key, label });
+        valInput.value = '';
+        renderTagChips();
+        loadTagValues(cat);
+    });
+
+    document.getElementById('tag-value').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('tag-add-btn').click();
+        }
+    });
+
+    function renderTagChips() {
+        const container = document.getElementById('tag-chips');
+        container.innerHTML = '';
+        tagState.items.forEach((item, idx) => {
+            const tag = document.createElement('div');
+            tag.className = 'mitre-tag';
+            tag.innerHTML = `<span>${item.label}</span>` +
+                `<button type="button" class="mitre-tag-del" data-idx="${idx}" title="Remove">` +
+                `<i class="bi bi-x-lg"></i></button>`;
+            container.appendChild(tag);
+        });
+        container.querySelectorAll('.mitre-tag-del').forEach(btn => {
+            btn.addEventListener('click', function () {
+                tagState.items.splice(parseInt(this.dataset.idx), 1);
+                renderTagChips();
+            });
+        });
+        const keys = tagState.items.map(i => i.key);
+        document.getElementById('tags-json-input').value = keys.length ? JSON.stringify(keys) : '';
+    }
+
+    function loadExistingTags(existing) {
+        tagState.items = [];
+        existing.forEach(key => {
+            if (typeof key !== 'string' || !key.includes(':')) return;
+            const idx = key.indexOf(':');
+            const cat = key.substring(0, idx);
+            const val = key.substring(idx + 1);
+            const label = `${tagState.categoryLabels[cat] || cat}: ${val}`;
+            tagState.items.push({ key, label });
+        });
+        renderTagChips();
+    }
+
+    loadCategories();
 })();
 </script>
 {% endblock %}

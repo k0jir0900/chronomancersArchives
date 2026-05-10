@@ -97,6 +97,12 @@
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
         </div>
     </div>
+    {% if siem_info %}
+    <div style="margin-bottom:30px;font-size:12px;">
+        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">SIEM</div>
+        <div style="padding:8px 10px;font-size:11px;">{{ siem_info | replace('_', ' ') | title }}</div>
+    </div>
+    {% endif %}
     {% if mitre_info %}
     <div style="margin-bottom:30px;font-size:12px;">
         <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">MITRE ATT&CK</div>
@@ -116,6 +122,18 @@
                 <span style="background:#d0d8f0;border-radius:3px;padding:1px 6px;font-size:10px;">{{ m.tactic.split(',')[0] | title }}</span>
                 {% endif %}
             </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% if tags_info %}
+    <div style="margin-bottom:30px;font-size:12px;">
+        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">Tags</div>
+        <div style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;">
+            {% for t in tags_info %}
+            <span style="background:#e8f0e0;border:1px solid #c0d0b0;border-radius:3px;padding:2px 8px;font-size:11px;">
+                <strong>{{ t.category | replace('_', ' ') | title }}:</strong> {{ t.value }}
+            </span>
             {% endfor %}
         </div>
     </div>
@@ -211,6 +229,16 @@
     </div>
 </div>
 
+<!-- SIEM -->
+{% if siem_info %}
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <p class="text-secondary small text-uppercase mb-2" style="letter-spacing:.5px;"><i class="bi bi-broadcast me-1"></i>SIEM</p>
+        <span class="mitre-tag"><span class="fw-semibold">{{ siem_info | replace('_', ' ') | title }}</span></span>
+    </div>
+</div>
+{% endif %}
+
 <!-- MITRE ATT&CK -->
 <div class="card mb-4">
     <div class="card-body py-3">
@@ -269,6 +297,59 @@
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-sm btn-primary ca-btn-sm"><i class="bi bi-floppy me-1"></i>Save</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary ca-btn-sm" onclick="toggleMitreEdit()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Tags -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <p class="text-secondary small text-uppercase mb-0" style="letter-spacing:.5px;"><i class="bi bi-tags-fill me-1"></i>Tags</p>
+            <button type="button" class="btn btn-sm btn-outline-secondary ca-btn-sm" onclick="toggleTagsEdit()">
+                <i class="bi bi-pencil me-1"></i>Edit
+            </button>
+        </div>
+
+        <!-- Display -->
+        <div id="tags-display">
+            {% if tags_info %}
+            <div class="d-flex flex-wrap gap-2">
+                {% for t in tags_info %}
+                <div class="mitre-tag">
+                    <span class="text-secondary text-uppercase" style="font-size:.7rem;letter-spacing:.5px;">{{ t.category | replace('_', ' ') }}</span>
+                    <span class="fw-semibold">{{ t.value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <span class="text-secondary small">No tags assigned.</span>
+            {% endif %}
+        </div>
+
+        <!-- Edit form -->
+        <div id="tags-edit-panel" style="display:none;" class="mt-3 pt-3">
+            <form method="POST" action="/history/edit-tags">
+                <input type="hidden" name="record_id" value="{{ latest_id }}">
+                <input type="hidden" name="redirect_url" value="{{ request.url }}">
+                <div class="mitre-add-row mb-2">
+                    <select id="edit-tag-category" class="form-select ca-input mitre-select" style="font-size:.875rem;">
+                        <option value="">Loading categories...</option>
+                    </select>
+                    <input id="edit-tag-value" class="form-control ca-input mitre-select" list="edit-tag-value-list"
+                           placeholder="Select or type a new tag" autocomplete="off" disabled style="font-size:.875rem;">
+                    <datalist id="edit-tag-value-list"></datalist>
+                    <button type="button" class="btn btn-outline-secondary mitre-add-btn" id="edit-tag-add-btn" disabled>
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                </div>
+                <div id="edit-tag-chips" class="mitre-tags mb-3"></div>
+                <input type="hidden" name="tags_json" id="edit-tags-json-input" value="">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary ca-btn-sm"><i class="bi bi-floppy me-1"></i>Save</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ca-btn-sm" onclick="toggleTagsEdit()">Cancel</button>
                 </div>
             </form>
         </div>
@@ -491,6 +572,129 @@
         });
         const keys = state.items.map(i => i.key);
         document.getElementById('edit-mitre-json-input').value = keys.length ? JSON.stringify(keys) : '';
+    }
+
+    // ---- Tags edit ----
+    const tagState = { items: [], categoryLabels: {}, ready: false };
+
+    function toggleTagsEdit() {
+        const panel = document.getElementById('tags-edit-panel');
+        const display = document.getElementById('tags-display');
+        const open = panel.style.display === 'none';
+        panel.style.display = open ? 'block' : 'none';
+        display.style.display = open ? 'none' : 'block';
+        if (open && !tagState.ready) initTagsPicker();
+    }
+    window.toggleTagsEdit = toggleTagsEdit;
+
+    async function initTagsPicker() {
+        tagState.ready = true;
+        const sel = document.getElementById('edit-tag-category');
+        try {
+            const resp = await fetch('/api/tags/categories');
+            const cats = await resp.json();
+            sel.innerHTML = '<option value="">-- Select Category --</option>';
+            cats.forEach(c => {
+                tagState.categoryLabels[c.key] = c.label;
+                const opt = document.createElement('option');
+                opt.value = c.key;
+                opt.textContent = c.label;
+                sel.appendChild(opt);
+            });
+        } catch (e) {
+            sel.innerHTML = '<option value="">Error loading categories</option>';
+        }
+        loadExistingTags();
+    }
+
+    function loadExistingTags() {
+        const existing = {{ tags_info | tojson }};
+        if (!existing || !existing.length) return;
+        tagState.items = existing.map(t => {
+            const key = `${t.category}:${t.value}`;
+            const label = `${tagState.categoryLabels[t.category] || t.category}: ${t.value}`;
+            return { key, label };
+        });
+        renderTagChips();
+    }
+
+    async function loadEditTagValues(category) {
+        const list = document.getElementById('edit-tag-value-list');
+        list.innerHTML = '';
+        if (!category) return;
+        try {
+            const resp = await fetch(`/api/tags?category=${encodeURIComponent(category)}`);
+            const values = await resp.json();
+            values.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                list.appendChild(opt);
+            });
+        } catch (e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const catSel = document.getElementById('edit-tag-category');
+        if (!catSel) return;
+        catSel.addEventListener('change', function () {
+            const cat = this.value;
+            const input = document.getElementById('edit-tag-value');
+            const addBtn = document.getElementById('edit-tag-add-btn');
+            input.value = '';
+            if (!cat) {
+                input.disabled = true;
+                addBtn.disabled = true;
+                document.getElementById('edit-tag-value-list').innerHTML = '';
+                return;
+            }
+            input.disabled = false;
+            addBtn.disabled = false;
+            loadEditTagValues(cat);
+        });
+
+        document.getElementById('edit-tag-add-btn').addEventListener('click', async function () {
+            const cat = document.getElementById('edit-tag-category').value;
+            const valInput = document.getElementById('edit-tag-value');
+            const val = valInput.value.trim();
+            if (!cat || !val) return;
+            const key = `${cat}:${val}`;
+            if (tagState.items.find(i => i.key === key)) { valInput.value = ''; return; }
+            try {
+                await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: cat, value: val })
+                });
+            } catch (e) {}
+            const label = `${tagState.categoryLabels[cat] || cat}: ${val}`;
+            tagState.items.push({ key, label });
+            valInput.value = '';
+            renderTagChips();
+            loadEditTagValues(cat);
+        });
+
+        document.getElementById('edit-tag-value').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('edit-tag-add-btn').click();
+            }
+        });
+    });
+
+    function renderTagChips() {
+        const container = document.getElementById('edit-tag-chips');
+        container.innerHTML = '';
+        tagState.items.forEach((item, idx) => {
+            const tag = document.createElement('div');
+            tag.className = 'mitre-tag';
+            tag.innerHTML = `<span>${item.label}</span><button type="button" class="mitre-tag-del" data-idx="${idx}"><i class="bi bi-x-lg"></i></button>`;
+            container.appendChild(tag);
+        });
+        container.querySelectorAll('.mitre-tag-del').forEach(btn => {
+            btn.addEventListener('click', function () { tagState.items.splice(parseInt(this.dataset.idx), 1); renderTagChips(); });
+        });
+        const keys = tagState.items.map(i => i.key);
+        document.getElementById('edit-tags-json-input').value = keys.length ? JSON.stringify(keys) : '';
     }
 })();
 </script>
