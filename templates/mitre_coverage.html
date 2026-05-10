@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}MITRE Coverage – Chronomancers Archives{% endblock %}
-{% block page_title %}MITRE ATT&CK Coverage{% endblock %}
+{% block page_title %}MITRE ATT&CK Coverage{% if attack_version %} <span style="font-weight:400;color:var(--text-muted);">v{{ attack_version }}</span>{% endif %}{% endblock %}
 
 {% block head %}
 <style>

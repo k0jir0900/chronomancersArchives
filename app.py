@@ -1057,11 +1057,14 @@ def mitre_coverage():
     total_subtechniques = len(subtechniques)
     covered_subtechniques = sum(1 for s in subtechniques if s['cdu_count'] > 0)
 
+    attack_version = load_mitre_config().get('attack_version')
+
     return render_template('mitre_coverage.html',
         matrix=matrix, tactic_order=TACTIC_ORDER,
         total_techniques=total_techniques, covered_techniques=covered_techniques,
         total_subtechniques=total_subtechniques, covered_subtechniques=covered_subtechniques,
-        last_sync=last_sync, companies=companies, selected_company=selected_company)
+        last_sync=last_sync, companies=companies, selected_company=selected_company,
+        attack_version=attack_version)
 
 @app.route('/api/mitre/techniques')
 @login_required
