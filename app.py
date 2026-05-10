@@ -1629,6 +1629,19 @@ def scheduled_backup_job():
         filepath = os.path.join(BACKUP_FOLDER, filename)
         print(f"Running Scheduled Backup: {filename}")
         generate_backup_custom(filepath)
+        config = load_schedule_config()
+        if config.get('logrotate_auto'):
+            days = int(config.get('logrotate_days', 7))
+            cutoff = datetime.now() - timedelta(days=days)
+            deleted = 0
+            if os.path.exists(BACKUP_FOLDER):
+                for f in os.listdir(BACKUP_FOLDER):
+                    if f.endswith('.sql'):
+                        path = os.path.join(BACKUP_FOLDER, f)
+                        if datetime.fromtimestamp(os.path.getctime(path)) < cutoff:
+                            os.remove(path)
+                            deleted += 1
+            print(f"Log rotation: {deleted} backup(s) older than {days} days removed.")
 
 def init_scheduler():
     if not scheduler_available or not scheduler:
@@ -1683,6 +1696,41 @@ if scheduler_available:
             if scheduler.running:
                 scheduler.shutdown()
         atexit.register(safe_shutdown)
+
+@app.route('/backup/logrotate/save', methods=['POST'])
+@login_required
+@admin_required
+def save_logrotate():
+    days = request.form.get('logrotate_days', '7')
+    try:
+        days = max(1, int(days))
+    except ValueError:
+        days = 7
+    auto = request.form.get('logrotate_auto') == 'on'
+    config = load_schedule_config()
+    config['logrotate_days'] = days
+    config['logrotate_auto'] = auto
+    save_schedule_config(config)
+    flash(f'Log rotation set to {days} days (auto: {"enabled" if auto else "disabled"}).', 'success')
+    return redirect(url_for('list_backups'))
+
+@app.route('/backup/logrotate/run', methods=['POST'])
+@login_required
+@admin_required
+def run_logrotate():
+    config = load_schedule_config()
+    days = int(config.get('logrotate_days', 7))
+    cutoff = datetime.now() - timedelta(days=days)
+    deleted = 0
+    if os.path.exists(BACKUP_FOLDER):
+        for f in os.listdir(BACKUP_FOLDER):
+            if f.endswith('.sql'):
+                path = os.path.join(BACKUP_FOLDER, f)
+                if datetime.fromtimestamp(os.path.getctime(path)) < cutoff:
+                    os.remove(path)
+                    deleted += 1
+    flash(f'Log rotation complete: {deleted} backup(s) older than {days} days removed.', 'success')
+    return redirect(url_for('list_backups'))
 
 @app.route('/backup/schedule', methods=['POST'])
 @login_required
