@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Compare Rules – Chronomancers Archives{% endblock %}
-{% block page_title %}Compare Rule Versions{% endblock %}
+{% block title %}Compare CDUs – Chronomancers Archives{% endblock %}
+{% block page_title %}Compare CDU Versions{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
@@ -20,9 +20,9 @@
         <form method="GET" action="/diff">
             <div class="row g-3 align-items-end">
                 <div class="col-12">
-                    <label class="form-label fw-medium">Select Rule</label>
+                    <label class="form-label fw-medium">Select CDU</label>
                     <select class="form-select" name="rule_name" onchange="this.form.submit()">
-                        <option value="">Select a rule to compare its versions...</option>
+                        <option value="">Select a CDU to compare its versions...</option>
                         {% for rule in all_rules %}
                         <option value="{{ rule }}" {% if rule == selected_rule %}selected{% endif %}>{{ rule }}</option>
                         {% endfor %}
@@ -57,7 +57,7 @@
                 </div>
                 {% elif selected_rule %}
                 <div class="col-12">
-                    <p class="text-danger mb-0">Not enough versions found for this rule.</p>
+                    <p class="text-danger mb-0">Not enough versions found for this CDU.</p>
                 </div>
                 {% endif %}
             </div>
@@ -114,7 +114,7 @@
 {% elif not selected_rule %}
 <div class="text-center mt-5 text-secondary">
     <i class="bi bi-layout-split" style="font-size:3rem;"></i>
-    <p class="mt-3 fs-5">Select a rule to compare its historical versions.</p>
+    <p class="mt-3 fs-5">Select a CDU to compare its historical versions.</p>
 </div>
 {% else %}
 <div class="text-center mt-5 text-secondary">

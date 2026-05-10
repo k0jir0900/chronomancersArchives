@@ -117,7 +117,7 @@
                     </thead>
                     <tbody>
                         <tr><td><code>id</code></td><td><span class="ca-type">integer</span></td><td>No</td><td>Unique record identifier</td></tr>
-                        <tr><td><code>rule_name</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Name of the detection rule</td></tr>
+                        <tr><td><code>rule_name</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Name of the CDU</td></tr>
                         <tr><td><code>company</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Associated company</td></tr>
                         <tr><td><code>environment</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>IT</code> | <code>OT</code> | <code>Both</code></td></tr>
                         <tr><td><code>action_type</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>creation</code> | <code>modification</code> | <code>elimination</code></td></tr>
@@ -125,7 +125,7 @@
                         <tr><td><code>tuning_driver</code></td><td><span class="ca-type">enum</span></td><td>No</td><td><code>fp_correction</code> | <code>hardening</code> | <code>new_use_case</code> | <code>maintenance</code></td></tr>
                         <tr><td><code>ticket</code></td><td><span class="ca-type">string</span></td><td>Yes</td><td>Associated ticket number</td></tr>
                         <tr><td><code>description</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Description of the change</td></tr>
-                        <tr><td><code>rule_content</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Full rule content (YAML, Sigma, etc.)</td></tr>
+                        <tr><td><code>rule_content</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Full CDU content (YAML, Sigma, etc.)</td></tr>
                         <tr><td><code>modified_by</code></td><td><span class="ca-type">string</span></td><td>No</td><td>Name of the user who made the change</td></tr>
                         <tr><td><code>mitre</code></td><td><span class="ca-type">string[]</span></td><td>No</td><td>MITRE ATT&CK keys. Format: <code>T&lt;id&gt;</code> or <code>T&lt;id&gt;:T&lt;sub&gt;</code></td></tr>
                         <tr><td><code>created_at</code></td><td><span class="ca-type">datetime</span></td><td>No</td><td>ISO 8601 timestamp of the event</td></tr>

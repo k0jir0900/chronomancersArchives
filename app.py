@@ -398,10 +398,23 @@ def home():
         if d in date_to_idx and a in chart_data['datasets']:
             chart_data['datasets'][a][date_to_idx[d]] = c
 
+    cursor.execute("""
+        SELECT
+            SUM(CASE WHEN a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]' THEN 1 ELSE 0 END) as with_mitre,
+            SUM(CASE WHEN a.mitre IS NULL OR a.mitre = 'null' OR a.mitre = '[]' THEN 1 ELSE 0 END) as without_mitre
+        FROM archives a
+        JOIN (SELECT rule_name, MAX(id) AS max_id FROM archives GROUP BY rule_name) latest ON a.id = latest.max_id
+    """)
+    mitre_row = cursor.fetchone()
+    mitre_coverage = {
+        'with_mitre': int(mitre_row['with_mitre'] or 0),
+        'without_mitre': int(mitre_row['without_mitre'] or 0)
+    }
+
     cursor.close()
     conn.close()
 
-    return render_template('home.html', stats=stats, top_rules=top_rules, tuning_driver_data=tuning_driver_data, chart_data=chart_data, filters=filters)
+    return render_template('home.html', stats=stats, top_rules=top_rules, tuning_driver_data=tuning_driver_data, chart_data=chart_data, filters=filters, mitre_coverage=mitre_coverage)
 
 @app.route('/history')
 @login_required
@@ -867,7 +880,15 @@ def register():
 
         return redirect(url_for('register'))
 
-    return render_template('register.html')
+    conn = get_db_connection()
+    rules = []
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
+        rules = [r['rule_name'] for r in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    return render_template('register.html', rules=rules)
 
 
 @app.route('/api/mitre/techniques')
@@ -903,6 +924,26 @@ def api_mitre_subtechniques(technique_id):
     cursor.close()
     conn.close()
     return jsonify(subs)
+
+
+@app.route('/api/rule/latest')
+@login_required
+def api_rule_latest():
+    rule_name = request.args.get('rule_name', '').strip()
+    if not rule_name:
+        return jsonify({})
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({})
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT company, siem, environment, severity, rule_status FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
+        (rule_name,)
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return jsonify(row or {})
 
 
 @app.route('/api/rule/mitre')

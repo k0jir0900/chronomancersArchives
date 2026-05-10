@@ -2,55 +2,53 @@
 {% block title %}Dashboard – Chronomancers Archives{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
-{% block content %}
-<!-- Filters -->
-<div class="d-flex justify-content-end mb-2">
-    <button id="toggleFilters" class="btn btn-outline-secondary btn-sm" onclick="toggleFilters()">
-        <i class="bi bi-funnel me-1"></i>Filters
-    </button>
-</div>
+{% block head %}
+<style>
+.home-dashboard {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--topbar-h) - 3rem);
+    gap: .5rem;
+    overflow: hidden;
+}
+.home-dashboard .card-body { padding: .65rem .9rem; }
+.home-histo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.home-histo .card { flex: 1; min-height: 0; }
+.home-histo .card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.home-histo .histo-canvas-wrap { flex: 1; min-height: 0; position: relative; }
+</style>
+{% endblock %}
 
-<div id="filterSection" style="display:none;" class="mb-4">
-    <div class="card">
-        <div class="card-body">
-            <form method="GET" action="/home" id="filterForm">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <label class="form-label">From</label>
-                        <input type="date" class="form-control" name="start_date" id="start_date" value="{{ filters.start_date }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">To</label>
-                        <input type="date" class="form-control" name="end_date" id="end_date" value="{{ filters.end_date }}">
-                    </div>
-                    <div class="col-md-6 d-flex align-items-end gap-2 flex-wrap">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPreset(1)">1d</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPreset(7)">7d</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPreset(30)">30d</button>
-                        <div class="ms-auto d-flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                                <i class="bi bi-search me-1"></i>Filter
-                            </button>
-                            <a href="/home" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-brush me-1"></i>Clear
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </form>
+{% block content %}
+<div class="home-dashboard">
+<!-- Filters -->
+<form method="GET" action="/home" id="filterForm">
+    <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+        <div id="filterSection" class="d-flex align-items-center gap-2 flex-wrap">
+            <input type="date" class="form-control form-control-sm" name="start_date" id="start_date" value="{{ filters.start_date }}" style="width:auto;">
+            <input type="date" class="form-control form-control-sm" name="end_date" id="end_date" value="{{ filters.end_date }}" style="width:auto;">
+            <select class="form-select form-select-sm" style="width:auto;" onchange="setPreset(+this.value);this.value=''">
+                <option value="">Quick range...</option>
+                <option value="1">Last 1 day</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
+            <a href="/home" class="btn btn-outline-secondary btn-sm"><i class="bi bi-brush me-1"></i>Clear</a>
         </div>
     </div>
-</div>
+</form>
 
 <!-- Stats Row -->
-<div class="row g-3 mb-3">
+<div class="row g-2">
     <div class="col-xxl col-lg-4 col-sm-6">
         <div class="stat-card">
             <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;">
                 <i class="bi bi-list-ol"></i>
             </div>
             <div>
-                <p class="stat-label">Total Unique Rules</p>
+                <p class="stat-label">Total Unique CDUs</p>
                 <h3 class="stat-value">{{ stats.unique_rules }}</h3>
             </div>
         </div>
@@ -101,54 +99,114 @@
     </div>
 </div>
 
-<!-- Analytics Row -->
-<div class="row g-3 mb-3">
-    <div class="col-lg-4">
-        <div class="card h-100">
-            <div class="card-body d-flex flex-column">
-                <div class="d-flex align-items-center gap-2 pb-3 mb-3 border-bottom">
-                    <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;width:32px;height:32px;font-size:.85rem;">
-                        <i class="bi bi-trophy"></i>
-                    </div>
-                    <h6 class="mb-0" style="color:#a371f7;">Most Active Rule</h6>
-                </div>
-                <div class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center gap-1">
-                    <p class="fw-bold mb-0" title="{{ top_rules[0].rule_name if top_rules else '' }}" style="font-size:1.35rem;word-break:break-word;">
-                        {{ top_rules[0].rule_name if top_rules else '—' }}
-                    </p>
-                    <p class="text-secondary small mb-0">
-                        <i class="bi bi-graph-up me-1"></i>{{ top_rules[0].count if top_rules else 0 }} actions
-                    </p>
+<!-- Most Active Rule Bar -->
+<div class="card">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;flex-shrink:0;">
+                <i class="bi bi-trophy"></i>
+            </div>
+            <div>
+                <p class="stat-label mb-1">Most Active CDU</p>
+                <div class="d-flex align-items-baseline gap-2">
+                    <span style="font-size:1.4rem;font-weight:700;color:#a371f7;line-height:1;">{{ top_rules[0].count if top_rules else 0 }}</span>
+                    <span class="text-secondary" style="font-size:.82rem;">actions</span>
+                    <span class="text-secondary">|</span>
+                    <span class="fw-medium" style="font-size:.95rem;" title="{{ top_rules[0].rule_name if top_rules else '' }}">{{ top_rules[0].rule_name if top_rules else '—' }}</span>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
+</div>
+
+<!-- Analytics Row -->
+<div class="row g-2">
+    <!-- Top 5 Active Rules -->
+    <div class="col-lg-6">
         <div class="card h-100">
             <div class="card-body">
-                <div class="d-flex align-items-center gap-2 pb-3 mb-3 border-bottom">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div class="ca-stat-icon" style="background:rgba(210,153,34,.15);color:#d29922;width:32px;height:32px;font-size:.85rem;">
+                        <i class="bi bi-pie-chart"></i>
+                    </div>
+                    <h6 class="mb-0" style="color:#d29922;">Top 5 Active CDUs</h6>
+                </div>
+                <div>
+                    {% for rule in top_rules %}
+                    <div class="d-flex align-items-center gap-2 py-1 {% if not loop.last %}border-bottom{% endif %}" style="font-size:.78rem;">
+                        <span style="font-weight:700;color:#d29922;min-width:24px;text-align:right;">{{ rule.count }}</span>
+                        <span class="text-secondary">actions |</span>
+                        <span class="fw-medium text-truncate" title="{{ rule.rule_name }}">{{ rule.rule_name }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Tuning Drivers -->
+    <div class="col-lg-3">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
                     <div class="ca-stat-icon" style="background:rgba(56,139,253,.15);color:#58a6ff;width:32px;height:32px;font-size:.85rem;">
                         <i class="bi bi-sliders"></i>
                     </div>
                     <h6 class="mb-0" style="color:#58a6ff;">Tuning Drivers</h6>
                 </div>
-                <div style="position:relative;min-height:80px;">
-                    <canvas id="tuningDriverChart"></canvas>
+                <div class="d-flex flex-grow-1 align-items-stretch gap-3" style="min-height:0;">
+                    <div style="position:relative;flex:1;min-width:0;min-height:0;">
+                        <canvas id="tuningDriverChart" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+                    </div>
+                    {% if tuning_driver_data.labels %}
+                    <div class="d-flex flex-column justify-content-center gap-2 flex-shrink-0" style="font-size:.78rem;white-space:nowrap;">
+                        {% set td_colors = ['#58a6ff','#238636','#d29922','#da3633','#a371f7'] %}
+                        {% set td_total = tuning_driver_data.counts | sum %}
+                        {% for label in tuning_driver_data.labels %}
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-1">
+                                <span style="width:10px;height:10px;border-radius:50%;background:{{ td_colors[loop.index0 % td_colors|length] }};flex-shrink:0;display:inline-block;"></span>
+                                <span>{{ label }}</span>
+                            </div>
+                            <span class="fw-semibold text-secondary fw-normal">({{ ((tuning_driver_data.counts[loop.index0] / td_total) * 100) | round(0) | int if td_total else 0 }}%)</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
+    <!-- MITRE Coverage -->
+    <div class="col-lg-3">
         <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center gap-2 pb-3 mb-3 border-bottom">
-                    <div class="ca-stat-icon" style="background:rgba(210,153,34,.15);color:#d29922;width:32px;height:32px;font-size:.85rem;">
-                        <i class="bi bi-pie-chart"></i>
+            <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="ca-stat-icon" style="background:rgba(35,134,54,.15);color:#3fb950;width:32px;height:32px;font-size:.85rem;">
+                        <i class="bi bi-shield-check"></i>
                     </div>
-                    <h6 class="mb-0" style="color:#d29922;">Top 5 Active Rules</h6>
+                    <h6 class="mb-0" style="color:#3fb950;">CDU with MITRE ATT&amp;CK</h6>
                 </div>
-                <div style="position:relative;min-height:80px;">
-                    <canvas id="topRulesChart"></canvas>
+                <div class="d-flex flex-grow-1 align-items-stretch gap-3" style="min-height:0;">
+                    <div style="position:relative;flex:1;min-width:0;min-height:0;">
+                        <canvas id="mitreCoverageChart" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+                    </div>
+                    {% set total_mitre = mitre_coverage.with_mitre + mitre_coverage.without_mitre %}
+                    <div class="d-flex flex-column justify-content-center gap-3 flex-shrink-0" style="font-size:.82rem;white-space:nowrap;">
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-1">
+                                <span style="width:10px;height:10px;border-radius:50%;background:#238636;flex-shrink:0;display:inline-block;"></span>
+                                <span>Yes</span>
+                            </div>
+                            <span class="fw-semibold">{{ mitre_coverage.with_mitre }} <span class="text-secondary fw-normal">({{ ((mitre_coverage.with_mitre / total_mitre) * 100) | round(0) | int if total_mitre else 0 }}%)</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-1">
+                                <span style="width:10px;height:10px;border-radius:50%;background:#da3633;flex-shrink:0;display:inline-block;"></span>
+                                <span>No</span>
+                            </div>
+                            <span class="fw-semibold">{{ mitre_coverage.without_mitre }} <span class="text-secondary fw-normal">({{ ((mitre_coverage.without_mitre / total_mitre) * 100) | round(0) | int if total_mitre else 0 }}%)</span></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -156,14 +214,23 @@
 </div>
 
 <!-- Histogram -->
-<div class="card">
-    <div class="card-body">
-        <h6 class="mb-2">Activity Histogram</h6>
-        <div style="position:relative;height:240px;">
-            <canvas id="activityChart"></canvas>
+<div class="home-histo">
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="ca-stat-icon" style="background:rgba(56,139,253,.15);color:#58a6ff;width:32px;height:32px;font-size:.85rem;">
+                    <i class="bi bi-bar-chart-line"></i>
+                </div>
+                <h6 class="mb-0" style="color:#58a6ff;">Activity Histogram</h6>
+            </div>
+            <div class="histo-canvas-wrap">
+                <canvas id="activityChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
+
+</div><!-- end home-dashboard -->
 {% endblock %}
 
 {% block scripts %}
@@ -183,7 +250,7 @@
         const el = document.getElementById('filterSection');
         const btn = document.getElementById('toggleFilters');
         const visible = el.style.display !== 'none';
-        el.style.display = visible ? 'none' : 'block';
+        el.style.display = visible ? 'none' : 'flex';
         btn.innerHTML = visible
             ? '<i class="bi bi-funnel me-1"></i>Filters'
             : '<i class="bi bi-funnel-fill me-1"></i>Hide Filters';
@@ -221,43 +288,62 @@
     });
 
     {% if tuning_driver_data.labels %}
+    setTimeout(function() {
     const ctxDriver = document.getElementById('tuningDriverChart').getContext('2d');
     const tuningData = {{ tuning_driver_data | tojson }};
     new Chart(ctxDriver, {
-        type: 'bar',
+        type: 'doughnut',
         data: {
             labels: tuningData.labels,
-            datasets: [{ data: tuningData.counts, backgroundColor: ['#58a6ff','#238636','#d29922','#da3633','#a371f7'], borderWidth: 0, barPercentage: 0.7 }]
+            datasets: [{ data: tuningData.counts, backgroundColor: ['#58a6ff','#238636','#d29922','#da3633','#a371f7'], borderWidth: 0 }]
         },
         options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { color: gridColor, drawBorder: false }, ticks: { color: textColor, font: { size: 11 } } },
-                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
+            responsive: true, maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total ? Math.round(ctx.parsed / total * 100) : 0;
+                            return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                        }
+                    }
+                }
             }
         }
     });
+    }, 0);
     {% endif %}
 
-    {% if top_rules %}
-    const ctxPie = document.getElementById('topRulesChart').getContext('2d');
-    const topRulesData = {{ top_rules | tojson }};
-    new Chart(ctxPie, {
-        type: 'bar',
+
+    const mitreCoverage = {{ mitre_coverage | tojson }};
+    setTimeout(function() {
+    const ctxMitre = document.getElementById('mitreCoverageChart').getContext('2d');
+    new Chart(ctxMitre, {
+        type: 'doughnut',
         data: {
-            labels: topRulesData.map(r => r.rule_name),
-            datasets: [{ data: topRulesData.map(r => r.count), backgroundColor: ['#a371f7','#d29922','#58a6ff','#238636','#da3633'], borderWidth: 0, barPercentage: 0.7 }]
+            labels: ['Si', 'No'],
+            datasets: [{ data: [mitreCoverage.with_mitre, mitreCoverage.without_mitre], backgroundColor: ['#238636', '#da3633'], borderWidth: 0 }]
         },
         options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { color: gridColor, drawBorder: false }, ticks: { color: textColor, font: { size: 11 } } },
-                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 }, callback: function(v) { const l = this.getLabelForValue(v); return l.length > 28 ? l.substr(0,28)+'…' : l; } } }
+            responsive: true, maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = total ? Math.round(ctx.parsed / total * 100) : 0;
+                            return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+                        }
+                    }
+                }
             }
         }
     });
-    {% endif %}
+    }, 0);
 </script>
 {% endblock %}

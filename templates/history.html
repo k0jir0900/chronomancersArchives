@@ -20,10 +20,18 @@
 {% endblock %}
 
 {% block content %}
+{% if is_active_search and summary %}
+<!-- Detail header: only PDF -->
+<div class="d-flex justify-content-end mb-4">
+    <button type="button" class="btn btn-sm btn-danger text-nowrap" onclick="exportToPDF()">
+        <i class="bi bi-file-pdf me-1"></i>PDF
+    </button>
+</div>
+{% else %}
 <!-- Search Inputs + Actions -->
 <div class="d-flex gap-2 align-items-center mb-4 flex-wrap">
     <div class="position-relative" style="flex:2;min-width:140px;">
-        <input id="searchRule" list="rule-list" name="rule_name" placeholder="Rule Name..." class="form-control ca-search-input"
+        <input id="searchRule" list="rule-list" name="rule_name" placeholder="CDU Name..." class="form-control ca-search-input"
             value="{{ selected_rule if selected_rule else '' }}" autocomplete="off">
         {% if selected_rule %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
@@ -46,17 +54,13 @@
         <input id="searchMitre" list="mitre-list" name="mitre" placeholder="MITRE Status..." class="form-control ca-search-input"
             autocomplete="off">
     </div>
-    {% if is_active_search %}
-    <button type="button" class="btn btn-sm btn-danger text-nowrap" onclick="exportToPDF()">
-        <i class="bi bi-file-pdf me-1"></i>PDF
-    </button>
-    {% endif %}
     {% if not is_active_search %}
     <a href="/diff" class="btn btn-outline-secondary btn-sm text-decoration-none text-nowrap">
-        <i class="bi bi-layout-split me-1"></i>Compare Rules
+        <i class="bi bi-layout-split me-1"></i>Compare CDUs
     </a>
     {% endif %}
 </div>
+{% endif %}
 
 <datalist id="rule-list">{% for rule in rules %}<option value="{{ rule }}">{% endfor %}</datalist>
 <datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
@@ -75,7 +79,7 @@
         const ruleName = "{{ summary.rule_name|default('Custom_Report') }}";
         const opt = {
             margin: 0.5,
-            filename: `Report_Rule_${ruleName}.pdf`,
+            filename: `Report_CDU_${ruleName}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
@@ -188,7 +192,7 @@
                     <div style="font-size:12px;line-height:1.3;">{{ log.description }}</div>
                 </div>
                 <div style="background:#fdfdfd;padding:8px;border-radius:3px;border:1px solid #eee;">
-                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Rule</div>
+                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">CDU</div>
                     <pre style="margin:0;white-space:pre-wrap;font-family:'Courier New',monospace;font-size:8.5px;color:#000;line-height:1.2;">{{ log.rule_content }}</pre>
                 </div>
             </div>
@@ -402,7 +406,7 @@
                 <p class="mb-0 small">{{ log.description }}</p>
             </div>
             <div class="ca-content-box ca-code-box">
-                <h6 class="ca-content-label"><i class="bi bi-code-slash me-1"></i>Rule</h6>
+                <h6 class="ca-content-label"><i class="bi bi-code-slash me-1"></i>CDU</h6>
                 <pre><code>{{ log.rule_content }}</code></pre>
             </div>
         </div>
@@ -425,13 +429,13 @@
             <table class="table table-hover mb-0" id="rulesTable">
                 <thead>
                     <tr>
-                        <th>Rule Name</th>
-                        <th style="width:1%;white-space:nowrap;">Company</th>
-                        <th style="width:1%;white-space:nowrap;">Environment</th>
-                        <th style="width:1%;white-space:nowrap;">Version</th>
-                        <th style="width:1%;white-space:nowrap;">Status</th>
-                        <th style="width:1%;white-space:nowrap;">MITRE Status</th>
-                        <th class="text-end" style="width:1%;white-space:nowrap;">Action</th>
+                        <th style="padding-left:1.25rem;">CDU Name</th>
+                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Company</th>
+                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Environment</th>
+                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Version</th>
+                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Status</th>
+                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">MITRE Status</th>
+                        <th class="text-end" style="width:1%;white-space:nowrap;padding-right:1.25rem;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="rulesTbody">
@@ -442,7 +446,7 @@
                         data-env="{{ rule_meta.environment|lower }}"
                         data-status="{{ rule_meta.rule_status|lower }}"
                         data-mitre="{{ 'ok' if rule_meta.has_mitre else 'not found' }}">
-                        <td class="fw-medium">{{ rule_meta.rule_name }}</td>
+                        <td class="fw-medium" style="padding-left:1.25rem;">{{ rule_meta.rule_name }}</td>
                         <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
                         <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
                         <td class="text-secondary" style="white-space:nowrap;">{{ rule_meta.version }}</td>
@@ -456,7 +460,7 @@
                             <span class="ca-status-badge" style="background:#b02a29;">Not Found</span>
                             {% endif %}
                         </td>
-                        <td class="text-end" style="white-space:nowrap;">
+                        <td class="text-end" style="white-space:nowrap;padding-right:1.25rem;">
                             <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}"
                                 class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
                                 <i class="bi bi-box-arrow-up-right me-1"></i>Detail

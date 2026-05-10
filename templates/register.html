@@ -11,9 +11,12 @@
             <!-- Rule identification -->
             <div class="ca-form-section">
                 <div class="ca-form-field">
-                    <label class="ca-label">Rule Name <span class="text-danger">*</span></label>
+                    <label class="ca-label">CDU Name <span class="text-danger">*</span></label>
                     <input type="text" class="form-control ca-input" name="rule_name" required
-                        placeholder="Ex: Block port 8080">
+                        placeholder="Ex: Block port 8080" list="rule-name-list" autocomplete="off">
+                    <datalist id="rule-name-list">
+                        {% for rule in rules %}<option value="{{ rule }}">{% endfor %}
+                    </datalist>
                 </div>
 
                 <div class="ca-form-field">
@@ -89,7 +92,7 @@
                 </div>
 
                 <div class="ca-form-field">
-                    <label class="ca-label">Rule Status <span class="text-danger">*</span></label>
+                    <label class="ca-label">CDU Status <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="rule_status" required>
                         <option value="active">Active</option>
                         <option value="disabled">Disabled</option>
@@ -114,9 +117,9 @@
                 </div>
 
                 <div class="ca-form-field">
-                    <label class="ca-label">Rule Content <span class="text-danger">*</span></label>
+                    <label class="ca-label">CDU Content <span class="text-danger">*</span></label>
                     <textarea class="form-control ca-input ca-code-font" name="rule_content" rows="8" required
-                        placeholder="Paste the full rule content here (YAML, Sigma, etc.)..."></textarea>
+                        placeholder="Paste the full CDU content here (YAML, Sigma, etc.)..."></textarea>
                 </div>
             </div>
 
@@ -435,21 +438,38 @@
     document.querySelector('[name="rule_name"]').addEventListener('blur', async function () {
         const ruleName = this.value.trim();
         if (!ruleName) return;
+
+        try {
+            const resp = await fetch(`/api/rule/latest?rule_name=${encodeURIComponent(ruleName)}`);
+            const data = await resp.json();
+            if (data && Object.keys(data).length) {
+                if (data.company)     document.querySelector('[name="company"]').value = data.company;
+                if (data.siem)        setSelect('siem', data.siem);
+                if (data.environment) setSelect('environment', data.environment);
+                if (data.severity)    setSelect('severity', data.severity);
+                if (data.rule_status) setSelect('rule_status', data.rule_status);
+            }
+        } catch (e) {}
+
         try {
             const resp = await fetch(`/api/rule/mitre?rule_name=${encodeURIComponent(ruleName)}`);
             const existing = await resp.json();
-            if (existing && existing.length) {
-                await loadExistingMitre(existing);
-            }
+            if (existing && existing.length) await loadExistingMitre(existing);
         } catch (e) {}
+
         try {
             const resp = await fetch(`/api/rule/tags?rule_name=${encodeURIComponent(ruleName)}`);
             const existing = await resp.json();
-            if (existing && existing.length) {
-                loadExistingTags(existing);
-            }
+            if (existing && existing.length) loadExistingTags(existing);
         } catch (e) {}
     });
+
+    function setSelect(name, value) {
+        const sel = document.querySelector(`[name="${name}"]`);
+        if (!sel) return;
+        const opt = [...sel.options].find(o => o.value === value);
+        if (opt) sel.value = value;
+    }
 
     loadTechniques();
 

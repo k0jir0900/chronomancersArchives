@@ -69,7 +69,7 @@ docker compose exec mysql mysql -u root -p chronomancers_archives < sql/002_inde
 
 | Field | Description |
 |---|---|
-| Rule Name | Unique name for the detection rule (e.g., `Suspicious CLI Command`) |
+| CDU Name | Unique name for the detection rule (e.g., `Suspicious CLI Command`) |
 | Company | Organization the rule applies to |
 | Environment | Deployment scope (e.g., `Production`, `Staging`) |
 | Action Type | `creation` / `modification` / `elimination` |
