@@ -29,10 +29,10 @@
             <input type="date" class="form-control form-control-sm" name="end_date" id="end_date" value="{{ filters.end_date }}" style="width:auto;">
             <select class="form-select form-select-sm" style="width:auto;" onchange="setPreset(+this.value);this.value=''">
                 <option value="">Quick range...</option>
-                <option value="1">Last 1 day</option>
-                <option value="7">Last 7 days</option>
-                <option value="30">Last 30 days</option>
-                <option value="90">Last 90 days</option>
+                <option value="7" {% if filters.preset == 7 %}selected{% endif %}>Last 7 days</option>
+                <option value="15" {% if filters.preset == 15 %}selected{% endif %}>Last 15 days</option>
+                <option value="30" {% if filters.preset == 30 %}selected{% endif %}>Last 30 days</option>
+                <option value="90" {% if filters.preset == 90 %}selected{% endif %}>Last 90 days</option>
             </select>
             <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Filter</button>
             <a href="/home" class="btn btn-outline-secondary btn-sm"><i class="bi bi-brush me-1"></i>Clear</a>

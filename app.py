@@ -323,15 +323,17 @@ def home():
     
     cursor = conn.cursor(dictionary=True)
     
-    default_start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    default_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     default_end = datetime.now().strftime('%Y-%m-%d')
     
     start_date = request.args.get('start_date', default_start)
     end_date = request.args.get('end_date', default_end)
     
+    delta = (datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(start_date, '%Y-%m-%d')).days
     filters = {
         'start_date': start_date,
-        'end_date': end_date
+        'end_date': end_date,
+        'preset': delta if delta in (7, 15, 30, 90) else None
     }
     
     cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
@@ -378,8 +380,14 @@ def home():
     """, (start_date + ' 00:00:00', end_date + ' 23:59:59'))
     daily_rows = cursor.fetchall()
     
-    dates = sorted(list(set(str(row['log_date']) for row in daily_rows)))
-    
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+    dates = []
+    cur = start_dt
+    while cur <= end_dt:
+        dates.append(str(cur))
+        cur += timedelta(days=1)
+
     chart_data = {
         'labels': dates,
         'datasets': {
@@ -388,8 +396,8 @@ def home():
             'elimination': [0] * len(dates)
         }
     }
-    
-    date_to_idx = {date: i for i, date in enumerate(dates)}
+
+    date_to_idx = {d: i for i, d in enumerate(dates)}
     
     for row in daily_rows:
         d = str(row['log_date'])

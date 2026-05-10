@@ -429,13 +429,14 @@
             <table class="table table-hover mb-0" id="rulesTable">
                 <thead>
                     <tr>
-                        <th style="padding-left:1.25rem;">CDU Name</th>
-                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Company</th>
-                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Environment</th>
-                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Version</th>
-                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">Status</th>
-                        <th style="width:1%;white-space:nowrap;padding-left:2.5rem;">MITRE Status</th>
-                        <th class="text-end" style="width:1%;white-space:nowrap;padding-right:1.25rem;">Action</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;padding-left:1.25rem;">#</th>
+                        <th style="padding-left:1rem;">CDU Name</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Company</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Environment</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Version</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Status</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">MITRE Status</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;padding-right:1.25rem;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="rulesTbody">
@@ -446,21 +447,22 @@
                         data-env="{{ rule_meta.environment|lower }}"
                         data-status="{{ rule_meta.rule_status|lower }}"
                         data-mitre="{{ 'ok' if rule_meta.has_mitre else 'not found' }}">
-                        <td class="fw-medium" style="padding-left:1.25rem;">{{ rule_meta.rule_name }}</td>
-                        <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
-                        <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
-                        <td class="text-secondary" style="white-space:nowrap;">{{ rule_meta.version }}</td>
-                        <td style="white-space:nowrap;">
+                        <td class="text-center text-secondary row-seq" style="padding-left:1.25rem;white-space:nowrap;"></td>
+                        <td class="fw-medium" style="padding-left:1rem;">{{ rule_meta.rule_name }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;">{{ rule_meta.version }}</td>
+                        <td class="text-center" style="white-space:nowrap;">
                             <span class="ca-status-badge" style="background:{{ '#1c7a37' if rule_meta.rule_status|lower == 'active' else '#b02a29' }};">{{ rule_meta.rule_status | title }}</span>
                         </td>
-                        <td style="white-space:nowrap;">
+                        <td class="text-center" style="white-space:nowrap;">
                             {% if rule_meta.has_mitre %}
                             <span class="ca-status-badge" style="background:#1c7a37;">OK</span>
                             {% else %}
                             <span class="ca-status-badge" style="background:#b02a29;">Not Found</span>
                             {% endif %}
                         </td>
-                        <td class="text-end" style="white-space:nowrap;padding-right:1.25rem;">
+                        <td class="text-center" style="white-space:nowrap;padding-right:1.25rem;">
                             <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}"
                                 class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
                                 <i class="bi bi-box-arrow-up-right me-1"></i>Detail
@@ -822,7 +824,11 @@
 
         function renderTable() {
             allRows.forEach(row => row.style.display = 'none');
-            filteredRows.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE).forEach(row => row.style.display = '');
+            const start = (currentPage - 1) * ROWS_PER_PAGE;
+            filteredRows.slice(start, start + ROWS_PER_PAGE).forEach((row, i) => {
+                row.style.display = '';
+                row.querySelector('.row-seq').textContent = start + i + 1;
+            });
             renderPagination();
         }
 
