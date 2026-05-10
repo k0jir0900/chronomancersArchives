@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block title %}MITRE Management – Chronomancers Archives{% endblock %}
+{% block page_title %}MITRE ATT&amp;CK Management{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Info cards -->
+    <div class="col-12">
+        <div class="row g-3">
+            <div class="col-sm-6 col-lg">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(88,166,255,.15);color:#58a6ff;">
+                        <i class="bi bi-tag-fill"></i>
+                    </div>
+                    <div>
+                        <p class="stat-label">ATT&amp;CK Version</p>
+                        <h3 class="stat-value">{{ config.get('attack_version') or '—' }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;">
+                        <i class="bi bi-diagram-2-fill"></i>
+                    </div>
+                    <div>
+                        <p class="stat-label">Techniques</p>
+                        <h3 class="stat-value">{{ db_counts.techniques }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(210,153,34,.15);color:#d29922;">
+                        <i class="bi bi-diagram-3-fill"></i>
+                    </div>
+                    <div>
+                        <p class="stat-label">Subtechniques</p>
+                        <h3 class="stat-value">{{ db_counts.subtechniques }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(35,134,54,.15);color:#3fb950;">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <p class="stat-label">Last Sync</p>
+                        <h3 class="stat-value" style="font-size:1rem;">{{ last_sync_db or '—' }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg">
+                <form action="{{ url_for('admin_mitre_sync') }}" method="POST"
+                    onsubmit="return confirm('Force a full MITRE ATT&CK sync? This may take up to 3 minutes.');" class="h-100">
+                    <button type="submit" class="stat-card w-100 h-100 border-0 text-start"
+                        style="cursor:pointer;background:rgba(88,166,255,.08);border:1.5px solid #58a6ff!important;border-radius:.75rem;transition:background .15s,box-shadow .15s;"
+                        onmouseover="this.style.background='rgba(88,166,255,.18)';this.style.boxShadow='0 0 0 3px rgba(88,166,255,.25)'"
+                        onmouseout="this.style.background='rgba(88,166,255,.08)';this.style.boxShadow='none'">
+                        <div class="ca-stat-icon" style="background:rgba(88,166,255,.2);color:#58a6ff;">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </div>
+                        <div>
+                            <p class="stat-label" style="color:#58a6ff;">Force Sync</p>
+                            <h3 class="stat-value" style="font-size:.95rem;color:#58a6ff;">Run Now</h3>
+                        </div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dataset info -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Dataset Info</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-borderless mb-0" style="font-size:.85rem;">
+                    <tbody>
+                        <tr>
+                            <td class="text-secondary ps-3" style="width:20%;">ATT&amp;CK Version</td>
+                            <td class="fw-medium">{{ config.get('attack_version') or 'Unknown - run sync' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">STIX Spec Version</td>
+                            <td class="fw-medium">{{ config.get('spec_version') or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Domain</td>
+                            <td class="fw-medium">Enterprise ATT&amp;CK</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Techniques</td>
+                            <td class="fw-medium">{{ db_counts.techniques }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Subtechniques</td>
+                            <td class="fw-medium">{{ db_counts.subtechniques }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Total</td>
+                            <td class="fw-medium">{{ db_counts.techniques + db_counts.subtechniques }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Source</td>
+                            <td class="fw-medium" style="font-size:.78rem;word-break:break-all;">{{ config.get('source') or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3">Last Sync</td>
+                            <td class="fw-medium">{{ last_sync_db or 'Never' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -57,6 +57,21 @@ def get_db_connection():
         print(f"Error: {err}")
         return None
 
+MITRE_CONFIG_FILE = 'mitre.conf'
+
+def load_mitre_config():
+    if os.path.exists(MITRE_CONFIG_FILE):
+        try:
+            with open(MITRE_CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_mitre_config(config):
+    with open(MITRE_CONFIG_FILE, 'w') as f:
+        json.dump(config, f)
+
 def sync_mitre_data():
     url = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
     try:
@@ -66,6 +81,14 @@ def sync_mitre_data():
     except Exception as e:
         print(f"MITRE sync fetch error: {e}")
         return False
+
+    attack_version = None
+    spec_version = None
+    for obj in data.get('objects', []):
+        if obj.get('type') == 'x-mitre-collection':
+            attack_version = obj.get('x_mitre_version')
+            spec_version = obj.get('x_mitre_attack_spec_version')
+            break
 
     techniques = []
     for obj in data.get('objects', []):
@@ -117,7 +140,17 @@ def sync_mitre_data():
             cursor.execute("DELETE FROM mitre_sync")
             cursor.execute("INSERT INTO mitre_sync (last_updated) VALUES (NOW())")
             conn.commit()
-            print(f"MITRE sync complete: {len(techniques)} techniques stored")
+            total = len(techniques)
+            subs = sum(1 for t in techniques if t[3] is not None)
+            save_mitre_config({
+                'attack_version': attack_version,
+                'spec_version': spec_version,
+                'total_techniques': total - subs,
+                'total_subtechniques': subs,
+                'last_sync': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'source': url,
+            })
+            print(f"MITRE sync complete: {total} techniques stored")
             return True
         except Exception as e:
             print(f"MITRE DB error: {e}")
@@ -899,6 +932,137 @@ def register():
     return render_template('register.html', rules=rules)
 
 
+TACTIC_ORDER = [
+    'reconnaissance', 'resource-development', 'initial-access', 'execution',
+    'persistence', 'privilege-escalation', 'defense-impairment', 'stealth',
+    'credential-access', 'discovery', 'lateral-movement', 'collection',
+    'command-and-control', 'exfiltration', 'impact'
+]
+TACTIC_LABELS = {
+    'reconnaissance': 'Reconnaissance', 'resource-development': 'Resource Development',
+    'initial-access': 'Initial Access', 'execution': 'Execution',
+    'persistence': 'Persistence', 'privilege-escalation': 'Privilege Escalation',
+    'defense-impairment': 'Defense Impairment', 'stealth': 'Stealth',
+    'credential-access': 'Credential Access', 'discovery': 'Discovery',
+    'lateral-movement': 'Lateral Movement', 'collection': 'Collection',
+    'command-and-control': 'Command & Control', 'exfiltration': 'Exfiltration',
+    'impact': 'Impact'
+}
+
+@app.route('/mitre-coverage')
+@login_required
+def mitre_coverage():
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('home'))
+
+    selected_company = request.args.get('company', '').strip()
+
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("SELECT DISTINCT company FROM archives WHERE company IS NOT NULL AND company != '' ORDER BY company")
+    companies = [r['company'] for r in cursor.fetchall()]
+
+    if selected_company:
+        cursor.execute("""
+            SELECT
+                mt.technique_id, mt.name, mt.tactic, mt.parent_id,
+                COUNT(DISTINCT la.rule_name) as cdu_count
+            FROM mitre_techniques mt
+            LEFT JOIN (
+                SELECT a.rule_name, a.mitre
+                FROM archives a
+                INNER JOIN (SELECT rule_name, MAX(id) as max_id FROM archives GROUP BY rule_name) latest
+                    ON a.id = latest.max_id
+                WHERE a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]'
+                  AND a.company = %s
+            ) la ON JSON_CONTAINS(la.mitre, JSON_QUOTE(
+                CASE
+                    WHEN mt.parent_id IS NOT NULL
+                    THEN CONCAT(mt.parent_id, ':', mt.technique_id)
+                    ELSE mt.technique_id
+                END
+            ))
+            GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
+            ORDER BY mt.technique_id
+        """, (selected_company,))
+    else:
+        cursor.execute("""
+            SELECT
+                mt.technique_id, mt.name, mt.tactic, mt.parent_id,
+                COUNT(DISTINCT la.rule_name) as cdu_count
+            FROM mitre_techniques mt
+            LEFT JOIN (
+                SELECT a.rule_name, a.mitre
+                FROM archives a
+                INNER JOIN (SELECT rule_name, MAX(id) as max_id FROM archives GROUP BY rule_name) latest
+                    ON a.id = latest.max_id
+                WHERE a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]'
+            ) la ON JSON_CONTAINS(la.mitre, JSON_QUOTE(
+                CASE
+                    WHEN mt.parent_id IS NOT NULL
+                    THEN CONCAT(mt.parent_id, ':', mt.technique_id)
+                    ELSE mt.technique_id
+                END
+            ))
+            GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
+            ORDER BY mt.technique_id
+        """)
+    rows = cursor.fetchall()
+
+    cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
+    sync_row = cursor.fetchone()
+    last_sync = sync_row['last_updated'].strftime('%Y-%m-%d %H:%M') if sync_row else 'Never'
+
+    cursor.close()
+    conn.close()
+
+    techniques_by_id = {}
+    subtechniques = []
+
+    for row in rows:
+        entry = {
+            'id': row['technique_id'],
+            'name': row['name'],
+            'tactic': row['tactic'] or '',
+            'parent_id': row['parent_id'],
+            'cdu_count': int(row['cdu_count'] or 0),
+            'subtechniques': []
+        }
+        if row['parent_id']:
+            subtechniques.append(entry)
+        else:
+            techniques_by_id[row['technique_id']] = entry
+
+    for sub in subtechniques:
+        parent = techniques_by_id.get(sub['parent_id'])
+        if parent:
+            parent['subtechniques'].append(sub)
+
+    matrix = {t: {'label': TACTIC_LABELS.get(t, t.replace('-', ' ').title()), 'techniques': []} for t in TACTIC_ORDER}
+
+    for tech in techniques_by_id.values():
+        for tactic in [t.strip() for t in tech['tactic'].split(',') if t.strip()]:
+            if tactic in matrix:
+                matrix[tactic]['techniques'].append(tech)
+
+    for col in matrix.values():
+        col['techniques'].sort(key=lambda t: t['id'])
+        for tech in col['techniques']:
+            tech['subtechniques'].sort(key=lambda s: s['id'])
+
+    total_techniques = len(techniques_by_id)
+    covered_techniques = sum(1 for t in techniques_by_id.values() if t['cdu_count'] > 0)
+    total_subtechniques = len(subtechniques)
+    covered_subtechniques = sum(1 for s in subtechniques if s['cdu_count'] > 0)
+
+    return render_template('mitre_coverage.html',
+        matrix=matrix, tactic_order=TACTIC_ORDER,
+        total_techniques=total_techniques, covered_techniques=covered_techniques,
+        total_subtechniques=total_subtechniques, covered_subtechniques=covered_subtechniques,
+        last_sync=last_sync, companies=companies, selected_company=selected_company)
+
 @app.route('/api/mitre/techniques')
 @login_required
 def api_mitre_techniques():
@@ -1505,6 +1669,41 @@ def restore_backup_custom(filepath):
     except Exception as e:
         print(f"Restore Error: {e}")
         return False
+
+@app.route('/admin/mitre')
+@login_required
+@admin_required
+def admin_mitre():
+    config = load_mitre_config()
+    conn = get_db_connection()
+    db_counts = {'techniques': 0, 'subtechniques': 0}
+    last_sync_db = None
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NULL")
+        db_counts['techniques'] = cursor.fetchone()['cnt']
+        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NOT NULL")
+        db_counts['subtechniques'] = cursor.fetchone()['cnt']
+        cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            last_sync_db = row['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+        cursor.close()
+        conn.close()
+    return render_template('mitre_admin.html', config=config, db_counts=db_counts, last_sync_db=last_sync_db)
+
+@app.route('/admin/mitre/sync', methods=['POST'])
+@login_required
+@admin_required
+def admin_mitre_sync():
+    t = threading.Thread(target=sync_mitre_data, daemon=True)
+    t.start()
+    t.join(timeout=180)
+    if t.is_alive():
+        flash('Sync started in background - may take a few minutes.', 'info')
+    else:
+        flash('MITRE ATT&CK sync completed successfully.', 'success')
+    return redirect(url_for('admin_mitre'))
 
 @app.route('/backup', methods=['GET'])
 @login_required

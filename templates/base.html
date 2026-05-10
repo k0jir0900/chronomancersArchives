@@ -28,6 +28,9 @@
             <a href="/history" class="nav-link {% if request.endpoint in ['history', 'diff'] %}active{% endif %}">
                 <i class="bi bi-clock-history"></i><span>CDU Details</span>
             </a>
+            <a href="/mitre-coverage" class="nav-link {% if request.endpoint == 'mitre_coverage' %}active{% endif %}">
+                <i class="bi bi-diagram-3"></i><span>MITRE Coverage</span>
+            </a>
         </nav>
     </aside>
 
@@ -60,6 +63,7 @@
                     <li><h6 class="dropdown-header">Administration</h6></li>
                     <li><a class="dropdown-item" href="/users"><i class="bi bi-people-fill me-2"></i>User Management</a></li>
                     <li><a class="dropdown-item" href="/backup"><i class="bi bi-database me-2"></i>Backup Management</a></li>
+                    <li><a class="dropdown-item" href="/admin/mitre"><i class="bi bi-diagram-3 me-2"></i>MITRE Management</a></li>
                     <li><a class="dropdown-item" href="/audit"><i class="bi bi-shield-lock me-2"></i>Audit</a></li>
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>

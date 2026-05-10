@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% block title %}MITRE Coverage – Chronomancers Archives{% endblock %}
+{% block page_title %}MITRE ATT&CK Coverage{% endblock %}
+
+{% block head %}
+<style>
+.mitre-wrap { overflow-x: auto; padding-bottom: .5rem; }
+.mitre-matrix { display: flex; gap: 3px; min-width: max-content; }
+.mitre-col { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; }
+
+.mitre-tactic-header {
+    background: #1c2a3a;
+    color: #58a6ff;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: .45rem .5rem;
+    text-align: center;
+    border-radius: .2rem .2rem 0 0;
+    border-bottom: 2px solid #58a6ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mitre-tech {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-top: none;
+    padding: .3rem .4rem;
+    font-size: .67rem;
+    position: relative;
+    min-height: 36px;
+}
+.mitre-tech:last-child { border-radius: 0 0 .2rem .2rem; }
+.mitre-tech.has-subs { cursor: pointer; }
+.mitre-tech.has-subs:hover { background: #1c2128; }
+.mitre-tech.lit { background: #12261e; border-color: #238636; }
+.mitre-tech.lit.has-subs:hover { background: #152d24; }
+
+.mitre-tech-id { color: #6e7681; font-size: .58rem; line-height: 1; margin-bottom: 2px; }
+.mitre-tech-name { color: #c9d1d9; line-height: 1.25; word-break: break-word; }
+.mitre-tech.lit .mitre-tech-id { color: #56d364; }
+.mitre-tech.lit .mitre-tech-name { color: #3fb950; }
+
+.mitre-badge {
+    position: absolute;
+    top: 3px; right: 4px;
+    background: #238636;
+    color: #fff;
+    font-size: .56rem;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 8px;
+    line-height: 1.7;
+}
+
+.mitre-sub {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-top: none;
+    padding: .25rem .4rem .25rem .75rem;
+    font-size: .62rem;
+    position: relative;
+}
+.mitre-sub.lit { background: #0e1e17; border-left: 2px solid #238636; }
+.mitre-sub .mitre-tech-id { font-size: .55rem; }
+.mitre-sub .mitre-tech-name { font-size: .62rem; }
+
+.mitre-expand-icon {
+    position: absolute;
+    bottom: 3px; right: 4px;
+    color: #6e7681;
+    font-size: .6rem;
+}
+
+.mitre-sub-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 3px;
+    font-size: .55rem;
+    color: #6e7681;
+    background: rgba(110,118,129,.12);
+    border-radius: 8px;
+    padding: 0 5px;
+    line-height: 1.7;
+}
+.mitre-sub-pill.has-covered {
+    color: #3fb950;
+    background: rgba(35,134,54,.15);
+}
+
+.mitre-stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .5rem;
+    padding: .35rem .75rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .4rem;
+    white-space: nowrap;
+}
+.mitre-stat-label {
+    margin: 0;
+    font-size: .68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.mitre-stat-value {
+    margin: 0;
+    font-weight: 700;
+    font-size: .92rem;
+    line-height: 1;
+}
+.mitre-stat-total {
+    font-size: .72rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: .2rem;
+}
+.mitre-stat-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.mitre-stat-btn:hover { border-color: #58a6ff; }
+.mitre-stat-btn.active { border-color: #238636; background: #12261e; }
+.mitre-stat-btn.active .mitre-stat-value { color: #3fb950; }
+.mitre-stat-icon { font-size: .75rem; color: var(--text-muted); }
+.mitre-stat-btn.active .mitre-stat-icon { color: #3fb950; }
+.mitre-stat-sep { width: 1px; background: var(--border); margin: .1rem 0; align-self: stretch; }
+.mitre-company-select {
+    font-size: .75rem;
+    min-width: 130px;
+    max-width: 180px;
+    align-self: stretch;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+    padding-top: 0;
+    padding-bottom: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set total_all = total_techniques + total_subtechniques %}
+{% set covered_all = covered_techniques + covered_subtechniques %}
+
+<div class="d-flex align-items-center mb-3 gap-2">
+    <div class="mitre-stat-card">
+        <p class="mitre-stat-label">Total</p>
+        <p class="mitre-stat-value">{{ covered_all }}<span class="mitre-stat-total">/ {{ total_all }}</span></p>
+    </div>
+    <div class="mitre-stat-card">
+        <p class="mitre-stat-label">Techniques</p>
+        <p class="mitre-stat-value">{{ covered_techniques }}<span class="mitre-stat-total">/ {{ total_techniques }}</span></p>
+    </div>
+    <div class="mitre-stat-card">
+        <p class="mitre-stat-label">Subtechniques</p>
+        <p class="mitre-stat-value">{{ covered_subtechniques }}<span class="mitre-stat-total">/ {{ total_subtechniques }}</span></p>
+    </div>
+    <div class="mitre-stat-card">
+        <p class="mitre-stat-label">Coverage</p>
+        <p class="mitre-stat-value" style="color:#a371f7;">{{ ((covered_all / total_all * 100) if total_all else 0) | round(1) }}%</p>
+    </div>
+    <div class="ms-auto d-flex gap-2 align-items-center">
+        <div class="mitre-stat-sep" style="height:1.5rem;"></div>
+        <button id="btnSubs" class="mitre-stat-card mitre-stat-btn">
+            <i class="bi bi-diagram-3 mitre-stat-icon"></i>
+            <p class="mitre-stat-label">Subtechniques</p>
+            <p class="mitre-stat-value">Show</p>
+        </button>
+        <button id="btnOnly" class="mitre-stat-card mitre-stat-btn">
+            <i class="bi bi-funnel mitre-stat-icon"></i>
+            <p class="mitre-stat-label">Only covered</p>
+            <p class="mitre-stat-value">Off</p>
+        </button>
+        <select id="companyFilter" class="form-select mitre-company-select">
+            <option value="">All companies</option>
+            {% for c in companies %}
+            <option value="{{ c }}" {% if c == selected_company %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+        <div class="mitre-stat-card">
+            <p class="mitre-stat-label">Last sync</p>
+            <p class="mitre-stat-value" style="font-size:.8rem;font-weight:500;">{{ last_sync }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card p-2">
+    <div class="mitre-wrap">
+        <div class="mitre-matrix">
+            {% for tactic in tactic_order %}
+            {% set col = matrix[tactic] %}
+            <div class="mitre-col">
+                <div class="mitre-tactic-header" title="{{ col.label }}">{{ col.label }}</div>
+                {% for tech in col.techniques %}
+                {% set sub_covered = tech.subtechniques|selectattr('cdu_count', '>', 0)|list|length if tech.subtechniques else 0 %}
+                {% set sub_total = tech.subtechniques|length if tech.subtechniques else 0 %}
+                <div class="mitre-tech {% if tech.cdu_count > 0 %}lit{% endif %} {% if tech.subtechniques %}has-subs{% endif %}"
+                    title="{{ tech.id }} - {{ tech.name }}{% if tech.cdu_count > 0 %} | {{ tech.cdu_count }} CDU{{ 's' if tech.cdu_count != 1 else '' }}{% endif %}{% if sub_total %} | {{ sub_covered }}/{{ sub_total }} subtechniques{% endif %}"
+                    data-has-subs="{{ 'true' if tech.subtechniques else 'false' }}"
+                    data-covered="{{ 'true' if tech.cdu_count > 0 else 'false' }}"
+                    data-has-covered-sub="{{ 'true' if sub_covered > 0 else 'false' }}"
+                    data-expanded="false"
+                    {% if tech.subtechniques %}onclick="techClick(this)"{% endif %}>
+                    {% if tech.cdu_count > 0 %}<span class="mitre-badge">{{ tech.cdu_count }}</span>{% endif %}
+                    {% if tech.subtechniques %}<span class="mitre-expand-icon bi bi-chevron-down"></span>{% endif %}
+                    <div class="mitre-tech-id">{{ tech.id }}</div>
+                    <div class="mitre-tech-name">{{ tech.name }}</div>
+                    {% if sub_total %}
+                    <div class="mitre-sub-pill {% if sub_covered > 0 %}has-covered{% endif %}">
+                        <i class="bi bi-diagram-3"></i> {{ sub_covered }}/{{ sub_total }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% for sub in tech.subtechniques %}
+                <div class="mitre-tech mitre-sub {% if sub.cdu_count > 0 %}lit{% endif %}"
+                    title="{{ sub.id }} - {{ sub.name }}{% if sub.cdu_count > 0 %} | {{ sub.cdu_count }} CDU{{ 's' if sub.cdu_count != 1 else '' }}{% endif %}"
+                    data-covered="{{ 'true' if sub.cdu_count > 0 else 'false' }}">
+                    {% if sub.cdu_count > 0 %}<span class="mitre-badge">{{ sub.cdu_count }}</span>{% endif %}
+                    <div class="mitre-tech-id">{{ sub.id }}</div>
+                    <div class="mitre-tech-name">{{ sub.name }}</div>
+                </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let subsVisible = false;
+    let onlyMode = false;
+
+    // Single source of truth: rerender applies all states from scratch using style.display only.
+    function rerender() {
+        document.querySelectorAll('.mitre-tech:not(.mitre-sub)').forEach(tech => {
+            const covered      = tech.dataset.covered === 'true';
+            const hasSubs      = tech.dataset.hasSubs === 'true';
+            const hasCovSub    = tech.dataset.hasCoveredSub === 'true';
+            const expanded     = tech.dataset.expanded === 'true';
+            const showSubs     = subsVisible || expanded;
+
+            // Tech row visibility
+            const techHidden = onlyMode && !covered && !hasCovSub;
+            tech.style.display = techHidden ? 'none' : '';
+
+            // Subtechniques
+            if (hasSubs) {
+                let next = tech.nextElementSibling;
+                while (next && next.classList.contains('mitre-sub')) {
+                    const subCovered = next.dataset.covered === 'true';
+                    const subHidden  = !showSubs || (onlyMode && !subCovered);
+                    next.style.display = subHidden ? 'none' : '';
+                    next = next.nextElementSibling;
+                }
+                // Chevron reflects actual visibility
+                const icon = tech.querySelector('.mitre-expand-icon');
+                if (icon) {
+                    icon.classList.toggle('bi-chevron-up', showSubs && !techHidden);
+                    icon.classList.toggle('bi-chevron-down', !showSubs || techHidden);
+                }
+            }
+        });
+    }
+
+    function techClick(el) {
+        // Per-tech toggle only meaningful when global subs are hidden
+        if (!subsVisible) {
+            el.dataset.expanded = el.dataset.expanded === 'true' ? 'false' : 'true';
+            rerender();
+        }
+    }
+
+    const btnSubs = document.getElementById('btnSubs');
+    const btnOnly = document.getElementById('btnOnly');
+
+    btnSubs.addEventListener('click', function () {
+        subsVisible = !subsVisible;
+        document.querySelectorAll('[data-expanded]').forEach(el => el.dataset.expanded = 'false');
+        rerender();
+        this.classList.toggle('active', subsVisible);
+        this.querySelector('.mitre-stat-value').textContent = subsVisible ? 'On' : 'Show';
+        this.querySelector('.mitre-stat-icon').className = subsVisible
+            ? 'bi bi-diagram-3-fill mitre-stat-icon'
+            : 'bi bi-diagram-3 mitre-stat-icon';
+    });
+
+    btnOnly.addEventListener('click', function () {
+        onlyMode = !onlyMode;
+        rerender();
+        this.classList.toggle('active', onlyMode);
+        this.querySelector('.mitre-stat-value').textContent = onlyMode ? 'On' : 'Off';
+        this.querySelector('.mitre-stat-icon').className = onlyMode
+            ? 'bi bi-funnel-fill mitre-stat-icon'
+            : 'bi bi-funnel mitre-stat-icon';
+    });
+
+    document.getElementById('companyFilter').addEventListener('change', function () {
+        const url = new URL(window.location.href);
+        if (this.value) url.searchParams.set('company', this.value);
+        else url.searchParams.delete('company');
+        window.location.href = url.toString();
+    });
+
+    // Initial render: all subs hidden
+    rerender();
+</script>
+{% endblock %}

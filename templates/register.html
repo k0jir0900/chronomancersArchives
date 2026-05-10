@@ -33,7 +33,7 @@
                 <div class="ca-form-field">
                     <label class="ca-label">SIEM <span class="ca-hint">— Optional</span></label>
                     <select class="form-select ca-input" name="siem">
-                        <option value="" selected>Select an option</option>
+                        <option value="" selected hidden>Select an option</option>
                         <option value="crowdstrike">CrowdStrike</option>
                         <option value="ms_sentinel">Microsoft Sentinel</option>
                         <option value="wazuh">Wazuh</option>
@@ -52,7 +52,7 @@
                 <div class="ca-form-field">
                     <label class="ca-label">Environment <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="environment" required>
-                        <option value="" disabled selected>Select an option</option>
+                        <option value="" selected hidden>Select an option</option>
                         <option value="IT">IT</option>
                         <option value="OT">OT</option>
                         <option value="Both">Both</option>
@@ -62,7 +62,7 @@
                 <div class="ca-form-field">
                     <label class="ca-label">Action Type <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="action_type" required>
-                        <option value="" disabled selected>Select an option</option>
+                        <option value="" selected hidden>Select an option</option>
                         <option value="creation">Creation</option>
                         <option value="modification">Modification</option>
                         <option value="elimination">Elimination</option>
@@ -72,17 +72,18 @@
                 <div class="ca-form-field">
                     <label class="ca-label">Tuning Driver <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="tuning_driver" required>
-                        <option value="maintenance">Maintenance</option>
-                        <option value="fp_correction">False Positive Correction</option>
-                        <option value="hardening">Hardening</option>
+                        <option value="" selected hidden>Select an option</option>
                         <option value="new_use_case">New Use Case</option>
+                        <option value="hardening">Hardening</option>
+                        <option value="fp_correction">False Positive Correction</option>
+                        <option value="maintenance">Maintenance</option>
                     </select>
                 </div>
 
                 <div class="ca-form-field">
                     <label class="ca-label">Severity <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="severity" required>
-                        <option value="" disabled selected>Select an option</option>
+                        <option value="" selected hidden>Select an option</option>
                         <option value="critical">Critical</option>
                         <option value="high">High</option>
                         <option value="medium">Medium</option>
@@ -125,8 +126,8 @@
 
             <div class="ca-form-divider"></div>
 
-            <!-- MITRE ATT&CK -->
-            <div class="ca-form-section">
+            <!-- MITRE ATT&CK + Tags -->
+            <div class="ca-form-section ca-form-section-2col">
                 <div class="ca-form-field">
                     <label class="ca-label">MITRE ATT&CK <span class="ca-hint">— Optional</span></label>
                     <div class="mitre-add-row">
@@ -143,14 +144,9 @@
                     <div id="mitre-tags" class="mitre-tags"></div>
                     <input type="hidden" name="mitre_json" id="mitre-json-input" value="">
                 </div>
-            </div>
 
-            <div class="ca-form-divider"></div>
-
-            <!-- Tags -->
-            <div class="ca-form-section">
                 <div class="ca-form-field">
-                    <label class="ca-label">Tags <span class="ca-hint">— Optional (baseline, hardware family, OS family, etc.)</span></label>
+                    <label class="ca-label">Tags <span class="ca-hint">— Optional</span></label>
                     <div class="mitre-add-row">
                         <select id="tag-category" class="form-select ca-input mitre-select">
                             <option value="">Loading categories...</option>
@@ -212,6 +208,15 @@
     flex-direction: column;
     gap: 1.25rem;
     padding: 1.5rem 0 .5rem;
+}
+.ca-form-section-2col {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 2rem;
+}
+.ca-form-section-2col > .ca-form-field {
+    flex: 1;
+    min-width: 0;
 }
 .ca-form-divider {
     border-top: 1px solid var(--border);

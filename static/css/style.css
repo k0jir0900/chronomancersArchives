@@ -182,7 +182,7 @@ body {
 .form-control, .form-select {
     background: var(--bg-body);
     border-color: var(--border);
-    color: var(--text-primary);
+    color: var(--text-primary) !important;
 }
 .form-control:focus, .form-select:focus {
     background: var(--bg-body);

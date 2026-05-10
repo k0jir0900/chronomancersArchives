@@ -16,6 +16,26 @@
     color: #fff;
     white-space: nowrap;
 }
+.ca-compare-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: .375rem .85rem;
+    font-size: .9rem;
+    font-weight: 500;
+    color: #58a6ff;
+    background: rgba(88,166,255,.08);
+    border: 1.5px solid #58a6ff;
+    border-radius: .375rem;
+    cursor: pointer;
+    transition: background .15s, box-shadow .15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.ca-compare-btn:hover {
+    background: rgba(88,166,255,.18);
+    box-shadow: 0 0 0 3px rgba(88,166,255,.25);
+    color: #58a6ff;
+}
 </style>
 {% endblock %}
 
@@ -40,22 +60,24 @@
             value="{{ selected_company if selected_company else '' }}" autocomplete="off">
         {% if selected_company %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
-    <div class="position-relative" style="flex:1;min-width:110px;">
-        <input id="searchEnv" list="env-list" name="environment" placeholder="Environment..." class="form-control ca-search-input"
-            value="{{ selected_environment if selected_environment else '' }}" autocomplete="off">
-        {% if selected_environment %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
-    </div>
-    <div class="position-relative" style="flex:1;min-width:100px;">
-        <input id="searchStatus" list="status-list" name="status" placeholder="Status..." class="form-control ca-search-input"
-            value="{{ selected_status if selected_status else '' }}" autocomplete="off">
-        {% if selected_status %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
-    </div>
-    <div class="position-relative" style="flex:1;min-width:120px;">
-        <input id="searchMitre" list="mitre-list" name="mitre" placeholder="MITRE Status..." class="form-control ca-search-input"
-            autocomplete="off">
-    </div>
+    <select id="searchEnv" class="form-select ca-search-input" style="flex:1;min-width:110px;">
+        <option value="">Environment...</option>
+        <option value="it">IT</option>
+        <option value="ot">OT</option>
+        <option value="both">Both</option>
+    </select>
+    <select id="searchStatus" class="form-select ca-search-input" style="flex:1;min-width:100px;">
+        <option value="">Status...</option>
+        <option value="active">Active</option>
+        <option value="disabled">Disabled</option>
+    </select>
+    <select id="searchMitre" class="form-select ca-search-input" style="flex:1;min-width:120px;">
+        <option value="">MITRE Status...</option>
+        <option value="ok">OK</option>
+        <option value="not found">Not Found</option>
+    </select>
     {% if not is_active_search %}
-    <a href="/diff" class="btn btn-outline-secondary btn-sm text-decoration-none text-nowrap">
+    <a href="/diff" class="text-decoration-none text-nowrap ca-compare-btn">
         <i class="bi bi-layout-split me-1"></i>Compare CDUs
     </a>
     {% endif %}
@@ -64,9 +86,6 @@
 
 <datalist id="rule-list">{% for rule in rules %}<option value="{{ rule }}">{% endfor %}</datalist>
 <datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
-<datalist id="env-list">{% for environment in environments %}<option value="{{ environment }}">{% endfor %}</datalist>
-<datalist id="status-list"><option value="active"><option value="disabled"></datalist>
-<datalist id="mitre-list"><option value="ok"><option value="not found"></datalist>
 
 {% if is_active_search %}
 {% if summary %}
