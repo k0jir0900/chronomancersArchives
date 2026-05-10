@@ -49,30 +49,28 @@
 </div>
 {% else %}
 <!-- Search Inputs + Actions -->
-<div class="d-flex gap-2 align-items-center mb-4 flex-wrap">
-    <div class="position-relative" style="flex:2;min-width:140px;">
-        <input id="searchRule" list="rule-list" name="rule_name" placeholder="CDU Name..." class="form-control ca-search-input"
-            value="{{ selected_rule if selected_rule else '' }}" autocomplete="off">
-        {% if selected_rule %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
-    </div>
-    <div class="position-relative" style="flex:1;min-width:110px;">
-        <input id="searchCompany" list="company-list" name="company" placeholder="Company..." class="form-control ca-search-input"
-            value="{{ selected_company if selected_company else '' }}" autocomplete="off">
-        {% if selected_company %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
-    </div>
-    <select id="searchEnv" class="form-select ca-search-input" style="flex:1;min-width:110px;">
-        <option value="">Environment...</option>
+<div class="d-flex gap-2 align-items-center mb-4">
+    <select id="searchRule" class="form-select ca-search-input" style="flex:5;min-width:0;">
+        <option value="" selected hidden>CDU Name</option>
+        {% for rule in rules %}<option value="{{ rule|lower }}" {% if selected_rule and rule|lower == selected_rule|lower %}selected{% endif %}>{{ rule }}</option>{% endfor %}
+    </select>
+    <select id="searchCompany" class="form-select ca-search-input" style="flex:1;min-width:0;">
+        <option value="" selected hidden>Company</option>
+        {% for company in companies %}<option value="{{ company|lower }}" {% if selected_company and company|lower == selected_company|lower %}selected{% endif %}>{{ company }}</option>{% endfor %}
+    </select>
+    <select id="searchEnv" class="form-select ca-search-input" style="flex:1;min-width:0;">
+        <option value="" selected hidden>Environment</option>
         <option value="it">IT</option>
         <option value="ot">OT</option>
         <option value="both">Both</option>
     </select>
-    <select id="searchStatus" class="form-select ca-search-input" style="flex:1;min-width:100px;">
-        <option value="">Status...</option>
+    <select id="searchStatus" class="form-select ca-search-input" style="flex:1;min-width:0;">
+        <option value="" selected hidden>Status</option>
         <option value="active">Active</option>
         <option value="disabled">Disabled</option>
     </select>
-    <select id="searchMitre" class="form-select ca-search-input" style="flex:1;min-width:120px;">
-        <option value="">MITRE Status...</option>
+    <select id="searchMitre" class="form-select ca-search-input" style="flex:1;min-width:0;">
+        <option value="" selected hidden>MITRE Status</option>
         <option value="ok">OK</option>
         <option value="not found">Not Found</option>
     </select>
@@ -84,8 +82,6 @@
 </div>
 {% endif %}
 
-<datalist id="rule-list">{% for rule in rules %}<option value="{{ rule }}">{% endfor %}</datalist>
-<datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
 
 {% if is_active_search %}
 {% if summary %}
@@ -824,18 +820,38 @@
         const searchStatusInput = document.getElementById('searchStatus');
         const searchMitreInput = document.getElementById('searchMitre');
 
+        function updateRuleOptions() {
+            const compVal = searchCompanyInput.value.toLowerCase();
+            const envVal = searchEnvInput.value.toLowerCase();
+            const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
+            const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
+            const validRules = new Set(allRows.filter(row =>
+                (compVal === "" || row.dataset.company === compVal) &&
+                (envVal === "" || row.dataset.env === envVal) &&
+                (statusVal === "" || (row.dataset.status || "") === statusVal) &&
+                (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
+            ).map(r => r.dataset.rule));
+            Array.from(searchRuleInput.options).forEach(opt => {
+                if (!opt.value) return;
+                opt.hidden = !validRules.has(opt.value);
+            });
+            if (searchRuleInput.value && !validRules.has(searchRuleInput.value))
+                searchRuleInput.value = '';
+        }
+
         function applyFilters() {
-            const ruleVal = searchRuleInput.value.toLowerCase();
+            updateRuleOptions();
+            const ruleVal = searchRuleInput.value;
             const compVal = searchCompanyInput.value.toLowerCase();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
             const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
             filteredRows = allRows.filter(row =>
-                row.dataset.rule.includes(ruleVal) &&
-                row.dataset.company.includes(compVal) &&
-                row.dataset.env.includes(envVal) &&
-                (row.dataset.status || '').includes(statusVal) &&
-                (mitreVal === '' || (row.dataset.mitre || '') === mitreVal)
+                (ruleVal === "" || row.dataset.rule === ruleVal) &&
+                (compVal === "" || row.dataset.company === compVal) &&
+                (envVal === "" || row.dataset.env === envVal) &&
+                (statusVal === "" || (row.dataset.status || "") === statusVal) &&
+                (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
             );
             currentPage = 1;
             renderTable();
@@ -885,7 +901,7 @@
         }
 
         [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
-            if (inp) { inp.addEventListener('input', applyFilters); inp.addEventListener('change', applyFilters); }
+            if (inp) inp.addEventListener('change', applyFilters);
         });
         applyFilters();
     });

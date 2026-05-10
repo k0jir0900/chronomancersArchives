@@ -133,9 +133,9 @@
 .mitre-stat-btn.active .mitre-stat-value { color: #3fb950; }
 .mitre-stat-icon { font-size: .75rem; color: var(--text-muted); }
 .mitre-stat-btn.active .mitre-stat-icon { color: #3fb950; }
-.mitre-stat-sep { width: 1px; background: var(--border); margin: .1rem 0; align-self: stretch; }
 .mitre-company-select {
-    font-size: .75rem;
+    font-size: .8rem;
+    font-weight: 500;
     min-width: 130px;
     max-width: 180px;
     align-self: stretch;
@@ -169,8 +169,11 @@
         <p class="mitre-stat-label">Coverage</p>
         <p class="mitre-stat-value" style="color:#a371f7;">{{ ((covered_all / total_all * 100) if total_all else 0) | round(1) }}%</p>
     </div>
+    <div class="mitre-stat-card">
+        <p class="mitre-stat-label">Last sync</p>
+        <p class="mitre-stat-value" style="font-size:.8rem;font-weight:500;">{{ last_sync }}</p>
+    </div>
     <div class="ms-auto d-flex gap-2 align-items-center">
-        <div class="mitre-stat-sep" style="height:1.5rem;"></div>
         <button id="btnSubs" class="mitre-stat-card mitre-stat-btn">
             <i class="bi bi-diagram-3 mitre-stat-icon"></i>
             <p class="mitre-stat-label">Subtechniques</p>
@@ -187,10 +190,6 @@
             <option value="{{ c }}" {% if c == selected_company %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
         </select>
-        <div class="mitre-stat-card">
-            <p class="mitre-stat-label">Last sync</p>
-            <p class="mitre-stat-value" style="font-size:.8rem;font-weight:500;">{{ last_sync }}</p>
-        </div>
     </div>
 </div>
 

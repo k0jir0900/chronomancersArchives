@@ -12,11 +12,13 @@
             <div class="ca-form-section">
                 <div class="ca-form-field">
                     <label class="ca-label">CDU Name <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control ca-input" name="rule_name" required
-                        placeholder="Ex: Block port 8080" list="rule-name-list" autocomplete="off">
-                    <datalist id="rule-name-list">
-                        {% for rule in rules %}<option value="{{ rule }}">{% endfor %}
-                    </datalist>
+                    <select id="ruleName-select" class="form-select ca-input" onchange="handleRuleSelect(this)">
+                        <option value="" selected hidden>Select an option</option>
+                        <option value="__new__">— New CDU —</option>
+                        {% for rule in rules %}<option value="{{ rule }}">{{ rule }}</option>{% endfor %}
+                    </select>
+                    <input type="text" id="ruleName-input" name="rule_name" class="form-control ca-input mt-2"
+                        placeholder="Enter new CDU name..." style="display:none;" autocomplete="off">
                 </div>
 
                 <div class="ca-form-field">
@@ -300,6 +302,20 @@
 </style>
 
 <script>
+function handleRuleSelect(sel) {
+    const input = document.getElementById('ruleName-input');
+    if (sel.value === '__new__') {
+        input.style.display = '';
+        input.required = true;
+        input.value = '';
+        input.focus();
+    } else {
+        input.style.display = 'none';
+        input.required = false;
+        input.value = sel.value;
+    }
+}
+
 (function () {
     const state = { items: [], techniques: [] };
 
