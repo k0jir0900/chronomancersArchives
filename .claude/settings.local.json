@@ -23,7 +23,10 @@
       "Bash(MSYS_NO_PATHCONV=1 docker run *)",
       "Bash(git *)",
       "Bash(docker exec *)",
-      "Bash(grep -oE '\\(baseline|os_family|application_family|hardware_family|network_family|vendor|criticality\\)[^<]{0,80}' /tmp/hist_detail.html)"
+      "Bash(grep -oE '\\(baseline|os_family|application_family|hardware_family|network_family|vendor|criticality\\)[^<]{0,80}' /tmp/hist_detail.html)",
+      "Bash(docker restart chronomancersarchives-chronomancers_archives-1 *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(Start-Sleep -Seconds 15)"
     ]
   }
 }

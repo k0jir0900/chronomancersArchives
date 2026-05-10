@@ -2,45 +2,59 @@
 {% block title %}History – Chronomancers Archives{% endblock %}
 {% block page_title %}{% if is_active_search and summary %}CDU Detail – {{ summary.rule_name }}{% else %}CDU Details{% endif %}{% endblock %}
 
-{% block content %}
-<!-- Header & Compare button -->
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div>{% if is_active_search and summary %}<span class="text-secondary small">Rule detail</span>{% endif %}</div>
-    {% if not is_active_search %}
-    <a href="/diff" class="btn btn-outline-secondary btn-sm text-decoration-none">
-        <i class="bi bi-layout-split me-1"></i>Compare Rules
-    </a>
-    {% endif %}
-</div>
+{% block head %}
+<style>
+.ca-status-badge {
+    display: inline-block;
+    width: 82px;
+    padding: .2rem 0;
+    text-align: center;
+    border-radius: .2rem;
+    font-size: .78rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: #fff;
+    white-space: nowrap;
+}
+</style>
+{% endblock %}
 
-<!-- Search Inputs -->
-<div class="row g-2 mb-4">
-    <div class="col-md-3 col-sm-6 position-relative">
+{% block content %}
+<!-- Search Inputs + Actions -->
+<div class="d-flex gap-2 align-items-center mb-4 flex-wrap">
+    <div class="position-relative" style="flex:2;min-width:140px;">
         <input id="searchRule" list="rule-list" name="rule_name" placeholder="Rule Name..." class="form-control ca-search-input"
             value="{{ selected_rule if selected_rule else '' }}" autocomplete="off">
         {% if selected_rule %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
-    <div class="col-md-3 col-sm-6 position-relative">
+    <div class="position-relative" style="flex:1;min-width:110px;">
         <input id="searchCompany" list="company-list" name="company" placeholder="Company..." class="form-control ca-search-input"
             value="{{ selected_company if selected_company else '' }}" autocomplete="off">
         {% if selected_company %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
-    <div class="col-md-3 col-sm-6 position-relative">
+    <div class="position-relative" style="flex:1;min-width:110px;">
         <input id="searchEnv" list="env-list" name="environment" placeholder="Environment..." class="form-control ca-search-input"
             value="{{ selected_environment if selected_environment else '' }}" autocomplete="off">
         {% if selected_environment %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
-    <div class="col-md-2 col-sm-6 position-relative">
+    <div class="position-relative" style="flex:1;min-width:100px;">
         <input id="searchStatus" list="status-list" name="status" placeholder="Status..." class="form-control ca-search-input"
             value="{{ selected_status if selected_status else '' }}" autocomplete="off">
         {% if selected_status %}<a href="/history" class="ca-clear-input"><i class="bi bi-x"></i></a>{% endif %}
     </div>
-    {% if is_active_search %}
-    <div class="col-md-1 col-sm-6">
-        <button type="button" class="btn btn-danger w-100 h-100" onclick="exportToPDF()">
-            <i class="bi bi-file-pdf me-1"></i>PDF
-        </button>
+    <div class="position-relative" style="flex:1;min-width:120px;">
+        <input id="searchMitre" list="mitre-list" name="mitre" placeholder="MITRE Status..." class="form-control ca-search-input"
+            autocomplete="off">
     </div>
+    {% if is_active_search %}
+    <button type="button" class="btn btn-sm btn-danger text-nowrap" onclick="exportToPDF()">
+        <i class="bi bi-file-pdf me-1"></i>PDF
+    </button>
+    {% endif %}
+    {% if not is_active_search %}
+    <a href="/diff" class="btn btn-outline-secondary btn-sm text-decoration-none text-nowrap">
+        <i class="bi bi-layout-split me-1"></i>Compare Rules
+    </a>
     {% endif %}
 </div>
 
@@ -48,6 +62,7 @@
 <datalist id="company-list">{% for company in companies %}<option value="{{ company }}">{% endfor %}</datalist>
 <datalist id="env-list">{% for environment in environments %}<option value="{{ environment }}">{% endfor %}</datalist>
 <datalist id="status-list"><option value="active"><option value="disabled"></datalist>
+<datalist id="mitre-list"><option value="ok"><option value="not found"></datalist>
 
 {% if is_active_search %}
 {% if summary %}
@@ -92,6 +107,15 @@
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod By:</span><strong>{{ summary.last_modifier }}</strong></div>
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod:</span><strong>{{ summary.last_modified.strftime('%Y-%m-%d') }}</strong></div>
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Status:</span><span style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold;">{{ summary.current_status }}</span></div>
+            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Severity:</span>
+                {% if summary.current_severity %}
+                {% set sev = summary.current_severity|lower %}
+                {% set sev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(sev, '#6e7681') %}
+                <span style="background:{{ sev_color }};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold;">{{ summary.current_severity|title }}</span>
+                {% else %}
+                <strong>N/A</strong>
+                {% endif %}
+            </div>
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Versions:</span><strong>{{ summary.total_events }}</strong></div>
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Company:</span><strong>{{ summary.company }}</strong></div>
             <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
@@ -149,7 +173,14 @@
                     {% if log.ticket %}<span>| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
                     <span>| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
                 </div>
-                <span style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.action_type|title }}</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    {% if log.severity %}
+                    {% set lsev = log.severity|lower %}
+                    {% set lsev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(lsev, '#6e7681') %}
+                    <span style="background:{{ lsev_color }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.severity|title }}</span>
+                    {% endif %}
+                    <span style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.action_type|title }}</span>
+                </div>
             </div>
             <div style="padding:10px;display:flex;flex-direction:column;gap:10px;">
                 <div style="padding-bottom:10px;border-bottom:1px solid #eee;">
@@ -175,69 +206,57 @@
 </div>
 {% endif %}
 
-<!-- Summary Boxes -->
-<div class="row g-3 mb-4">
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Company</p>
-                <p class="fw-semibold mb-0">{{ summary.company }}</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Environment</p>
-                <p class="fw-semibold mb-0">{{ summary.environment }}</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Versions</p>
-                <p class="fw-semibold mb-0">{{ summary.total_events }}</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Status</p>
-                <span class="badge" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;font-size:.85rem;padding:4px 10px;">
-                    {{ summary.current_status }}
-                </span>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Created</p>
-                <p class="fw-semibold mb-0">{{ summary.first_created.strftime('%Y-%m-%d') }}</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2 col-sm-4">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <p class="text-secondary small text-uppercase mb-1" style="letter-spacing:.5px;">Last Modified</p>
-                <p class="fw-semibold mb-0">{{ summary.last_modified.strftime('%Y-%m-%d') }}</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- SIEM -->
-{% if siem_info %}
+<!-- Summary Table -->
 <div class="card mb-4">
-    <div class="card-body py-3">
-        <p class="text-secondary small text-uppercase mb-2" style="letter-spacing:.5px;"><i class="bi bi-broadcast me-1"></i>SIEM</p>
-        <span class="mitre-tag"><span class="fw-semibold">{{ siem_info | replace('_', ' ') | title }}</span></span>
+    <div class="card-body p-0">
+        <table class="table table-borderless ca-summary-table mb-0">
+            <tbody>
+                <tr>
+                    <th class="ca-sum-key">Company</th>
+                    <td class="ca-sum-val">{{ summary.company }}</td>
+                    <th class="ca-sum-key">Environment</th>
+                    <td class="ca-sum-val">{{ summary.environment }}</td>
+                </tr>
+                <tr>
+                    <th class="ca-sum-key">Status</th>
+                    <td class="ca-sum-val">
+                        <span class="badge" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;padding:3px 9px;">
+                            {{ summary.current_status }}
+                        </span>
+                    </td>
+                    <th class="ca-sum-key">Severity</th>
+                    <td class="ca-sum-val">
+                        {% if summary.current_severity %}
+                        {% set sev = summary.current_severity|lower %}
+                        {% set sev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(sev, '#6e7681') %}
+                        <span class="badge" style="background:{{ sev_color }};color:#fff;padding:3px 9px;">{{ summary.current_severity|title }}</span>
+                        {% else %}
+                        <span class="text-secondary">N/A</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th class="ca-sum-key">SIEM</th>
+                    <td class="ca-sum-val">
+                        {% if siem_info %}
+                        {{ siem_info | replace('_', ' ') | title }}
+                        {% else %}
+                        <span class="text-secondary">N/A</span>
+                        {% endif %}
+                    </td>
+                    <th class="ca-sum-key">Versions</th>
+                    <td class="ca-sum-val">{{ summary.total_events }}</td>
+                </tr>
+                <tr>
+                    <th class="ca-sum-key">Created</th>
+                    <td class="ca-sum-val">{{ summary.first_created.strftime('%Y-%m-%d') }}</td>
+                    <th class="ca-sum-key">Last Modified</th>
+                    <td class="ca-sum-val">{{ summary.last_modified.strftime('%Y-%m-%d') }}</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
-{% endif %}
 
 <!-- MITRE ATT&CK -->
 <div class="card mb-4">
@@ -367,6 +386,11 @@
                 <i class="bi bi-person-fill me-1"></i>Modified by: <strong style="color:#58a6ff;">{{ log.modified_by or 'System' }}</strong>
                 {% if log.ticket %}<span class="ms-2">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
                 <span class="ms-2">| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
+                {% if log.severity %}
+                {% set lsev = log.severity|lower %}
+                {% set lsev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(lsev, '#6e7681') %}
+                <span class="ms-2">| Severity: <span class="badge" style="background:{{ lsev_color }};color:#fff;padding:2px 8px;">{{ log.severity|title }}</span></span>
+                {% endif %}
             </span>
             <span class="badge ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;">
                 {% if log.action_type == 'creation' %}Creation{% elif log.action_type == 'modification' %}Modification{% elif log.action_type == 'elimination' %}Elimination{% else %}{{ log.action_type }}{% endif %}
@@ -402,11 +426,12 @@
                 <thead>
                     <tr>
                         <th>Rule Name</th>
-                        <th>Company</th>
-                        <th>Environment</th>
-                        <th>Version</th>
-                        <th>Status</th>
-                        <th class="text-end">Action</th>
+                        <th style="width:1%;white-space:nowrap;">Company</th>
+                        <th style="width:1%;white-space:nowrap;">Environment</th>
+                        <th style="width:1%;white-space:nowrap;">Version</th>
+                        <th style="width:1%;white-space:nowrap;">Status</th>
+                        <th style="width:1%;white-space:nowrap;">MITRE Status</th>
+                        <th class="text-end" style="width:1%;white-space:nowrap;">Action</th>
                     </tr>
                 </thead>
                 <tbody id="rulesTbody">
@@ -415,17 +440,23 @@
                         data-rule="{{ rule_meta.rule_name|lower }}"
                         data-company="{{ rule_meta.company|lower }}"
                         data-env="{{ rule_meta.environment|lower }}"
-                        data-status="{{ rule_meta.rule_status|lower }}">
+                        data-status="{{ rule_meta.rule_status|lower }}"
+                        data-mitre="{{ 'ok' if rule_meta.has_mitre else 'not found' }}">
                         <td class="fw-medium">{{ rule_meta.rule_name }}</td>
-                        <td class="text-secondary"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
-                        <td class="text-secondary"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
-                        <td class="text-secondary">{{ rule_meta.version }}</td>
-                        <td>
-                            <span class="badge" style="background:{{ '#1c7a37' if rule_meta.rule_status|lower == 'active' else '#b02a29' }};color:#fff;padding:4px 10px;">
-                                {{ rule_meta.rule_status | title }}
-                            </span>
+                        <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
+                        <td class="text-secondary" style="white-space:nowrap;"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
+                        <td class="text-secondary" style="white-space:nowrap;">{{ rule_meta.version }}</td>
+                        <td style="white-space:nowrap;">
+                            <span class="ca-status-badge" style="background:{{ '#1c7a37' if rule_meta.rule_status|lower == 'active' else '#b02a29' }};">{{ rule_meta.rule_status | title }}</span>
                         </td>
-                        <td class="text-end">
+                        <td style="white-space:nowrap;">
+                            {% if rule_meta.has_mitre %}
+                            <span class="ca-status-badge" style="background:#1c7a37;">OK</span>
+                            {% else %}
+                            <span class="ca-status-badge" style="background:#b02a29;">Not Found</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end" style="white-space:nowrap;">
                             <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}"
                                 class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
                                 <i class="bi bi-box-arrow-up-right me-1"></i>Detail
@@ -466,6 +497,28 @@
 .mitre-select { flex: 1; min-width: 180px; }
 .mitre-add-btn { white-space: nowrap; flex-shrink: 0; }
 .mitre-tags { display: flex; flex-wrap: wrap; gap: .5rem; min-height: 0; }
+.ca-summary-table { table-layout: fixed; width: 100%; margin: 0; }
+.ca-summary-table th, .ca-summary-table td {
+    padding: .55rem .9rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+    font-size: .85rem;
+}
+.ca-summary-table tr:last-child th, .ca-summary-table tr:last-child td { border-bottom: 0; }
+.ca-summary-table .ca-sum-key {
+    width: 14%;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-size: .72rem;
+    background: rgba(255,255,255,.02);
+}
+.ca-summary-table .ca-sum-val {
+    width: 36%;
+    color: var(--text-primary);
+    font-weight: 500;
+}
 </style>
 <script>
 (function () {
@@ -736,7 +789,7 @@
 {% if not is_active_search and all_rules_metadata %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const ROWS_PER_PAGE = 10;
+        let ROWS_PER_PAGE = 15;
         let currentPage = 1;
         let filteredRows = [];
         const allRows = Array.from(document.querySelectorAll('.rule-row'));
@@ -744,17 +797,20 @@
         const searchCompanyInput = document.getElementById('searchCompany');
         const searchEnvInput = document.getElementById('searchEnv');
         const searchStatusInput = document.getElementById('searchStatus');
+        const searchMitreInput = document.getElementById('searchMitre');
 
         function applyFilters() {
             const ruleVal = searchRuleInput.value.toLowerCase();
             const compVal = searchCompanyInput.value.toLowerCase();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
+            const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
             filteredRows = allRows.filter(row =>
                 row.dataset.rule.includes(ruleVal) &&
                 row.dataset.company.includes(compVal) &&
                 row.dataset.env.includes(envVal) &&
-                (row.dataset.status || '').includes(statusVal)
+                (row.dataset.status || '').includes(statusVal) &&
+                (mitreVal === '' || (row.dataset.mitre || '') === mitreVal)
             );
             currentPage = 1;
             renderTable();
@@ -771,6 +827,25 @@
             const controls = document.getElementById('paginationControls');
             if (!controls) return;
             controls.innerHTML = '';
+
+            if (totalPages === 0) {
+                controls.innerHTML = '<span class="text-secondary small">No matches found.</span>';
+                return;
+            }
+
+            const sel = document.createElement('select');
+            sel.className = 'form-select form-select-sm me-2';
+            sel.style.width = 'auto';
+            [15, 20, 50, 100].forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n + ' rows';
+                opt.selected = n === ROWS_PER_PAGE;
+                sel.appendChild(opt);
+            });
+            sel.onchange = () => { ROWS_PER_PAGE = +sel.value; currentPage = 1; renderTable(); };
+            controls.appendChild(sel);
+
             for (let i = 1; i <= totalPages; i++) {
                 const btn = document.createElement('button');
                 btn.innerText = i;
@@ -778,10 +853,9 @@
                 btn.onclick = () => { currentPage = i; renderTable(); };
                 controls.appendChild(btn);
             }
-            if (totalPages === 0) controls.innerHTML = '<span class="text-secondary small">No matches found.</span>';
         }
 
-        [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput].forEach(inp => {
+        [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
             if (inp) { inp.addEventListener('input', applyFilters); inp.addEventListener('change', applyFilters); }
         });
         applyFilters();

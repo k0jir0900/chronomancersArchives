@@ -31,21 +31,21 @@
 
                 {% if selected_rule and versions|length > 0 %}
                 <div class="col-md-5">
-                    <label class="form-label fw-medium">Old Version (Base)</label>
+                    <label class="form-label fw-medium">Old Version</label>
                     <select class="form-select" name="v1">
                         {% for v in versions %}
-                        <option value="{{ v.id }}" {% if v.id|string == v1_id|string %}selected{% endif %}>
-                            {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
+                        <option value="{{ v.id }}" {% if v.id|string == v1_id|string or (loop.index == 2 and not v1_id) %}selected{% endif %}>
+                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | title }} · {{ v.modified_by }}
                         </option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label fw-medium">New Version (Comparison)</label>
+                    <label class="form-label fw-medium">New Version</label>
                     <select class="form-select" name="v2">
                         {% for v in versions %}
                         <option value="{{ v.id }}" {% if v.id|string == v2_id|string or (loop.first and not v2_id) %}selected{% endif %}>
-                            {{ v.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ v.action_type | title }} ({{ v.modified_by }})
+                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | title }} · {{ v.modified_by }}
                         </option>
                         {% endfor %}
                     </select>

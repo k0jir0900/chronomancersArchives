@@ -216,10 +216,14 @@ body {
     letter-spacing: .05em;
     color: var(--text-muted);
     border-bottom-color: var(--border);
+    padding-top: .4rem;
+    padding-bottom: .4rem;
 }
 .table td {
     border-bottom-color: var(--border);
     vertical-align: middle;
+    padding-top: .35rem;
+    padding-bottom: .35rem;
 }
 
 /* ---- Dropdown ---- */

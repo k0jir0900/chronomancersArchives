@@ -67,20 +67,32 @@
                 </div>
 
                 <div class="ca-form-field">
-                    <label class="ca-label">Rule Status <span class="text-danger">*</span></label>
-                    <select class="form-select ca-input" name="rule_status" required>
-                        <option value="active">Active</option>
-                        <option value="disabled">Disabled</option>
-                    </select>
-                </div>
-
-                <div class="ca-form-field">
                     <label class="ca-label">Tuning Driver <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="tuning_driver" required>
                         <option value="maintenance">Maintenance</option>
                         <option value="fp_correction">False Positive Correction</option>
                         <option value="hardening">Hardening</option>
                         <option value="new_use_case">New Use Case</option>
+                    </select>
+                </div>
+
+                <div class="ca-form-field">
+                    <label class="ca-label">Severity <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="severity" required>
+                        <option value="" disabled selected>Select an option</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                        <option value="informative">Informative</option>
+                    </select>
+                </div>
+
+                <div class="ca-form-field">
+                    <label class="ca-label">Rule Status <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="rule_status" required>
+                        <option value="active">Active</option>
+                        <option value="disabled">Disabled</option>
                     </select>
                 </div>
             </div>

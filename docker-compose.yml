@@ -63,7 +63,7 @@ services:
              apt-get install -y --no-install-recommends wget > /dev/null 2>&1 &&
              rm -rf /var/lib/apt/lists/* &&
              pip install --no-cache-dir -r /app/requirements.txt > /dev/null 2>&1 &&
-             gunicorn -w 1 -b 0.0.0.0:5001 --timeout 120 app:app"
+             python app.py"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/health >/dev/null 2>&1 || exit 1"]
       interval: 30s

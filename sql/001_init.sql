@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS archives (
     environment VARCHAR(50) NOT NULL,
     rule_status VARCHAR(20) DEFAULT 'active',
     tuning_driver VARCHAR(50) DEFAULT 'maintenance',
+    severity VARCHAR(20) DEFAULT NULL,
     action_type ENUM('creation', 'modification', 'elimination') NOT NULL,
     ticket VARCHAR(255),
     description TEXT NOT NULL,

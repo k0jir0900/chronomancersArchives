@@ -49,8 +49,10 @@ CATEGORIES = ['cloud', 'network', 'endpoint', 'proxy', 'web']
 SERVICES = ['okta', 'aws', 'azure', 'windows', 'linux', 'cisco', 'nginx']
 ACTIONS = ['Login Failure', 'Brute Force', 'Privilege Escalation', 'Malware Download', 'Port Scan', 'SQL Injection', 'Ransomware Activity', 'Shadow Copy Deletion']
 TUNING_DRIVERS = ['fp_correction', 'hardening', 'new_use_case', 'maintenance']
+SEVERITIES = ['critical', 'high', 'medium', 'low', 'informative']
+SIEMS = ['crowdstrike', 'ms_sentinel', 'wazuh', 'splunk', 'qradar', 'elastic', 'arcsight', 'logrhythm', 'securonix', 'exabeam', 'sumo_logic']
 AUTHORS = ['Kaladin, Stormblessed', 'Kelsier, the Survivor of Hathsin', 'Vin, the Heir to the Ascension', 'Shallan Davar, Lightweaver', 'Dalinar Kholin, the Blackthorn', 'Sazed, the Keeper', 'Raoden, Prince of Elantris', 'Siri, Vessel of the Returned', 'Adolin Kholin, Prince’s Duelist', 'Hoid, Wit']
-COMPANIES = ['Acme Corp', 'Stark Industries', 'Wayne Enterprises', 'Umbrella Corporation', 'Cyberdyne Systems']
+COMPANIES = ['Windrunners', 'Skybreakers', 'Dustbringers', 'Edgedancers', 'Truthwatchers', 'Lightweavers', 'Elsecallers', 'Willshapers', 'Stonewards', 'Bondsmiths']
 ENVIRONMENTS = ['IT', 'OT']
 
 # Realistic MITRE ATT&CK technique/subtechnique pairs (technique_id: [subtechnique_id, ...])
@@ -69,6 +71,8 @@ MITRE_POOL = {
 MITRE_TECHNIQUES = list(MITRE_POOL.keys())
 
 def random_mitre():
+    if random.random() < 0.30:
+        return None
     count = random.randint(1, 3)
     chosen = random.sample(MITRE_TECHNIQUES, min(count, len(MITRE_TECHNIQUES)))
     keys = []
@@ -121,7 +125,8 @@ def main():
             "service": service,
             "id": str(uuid.uuid4()),
             "company": random.choice(COMPANIES),
-            "environment": random.choice(ENVIRONMENTS)
+            "environment": random.choice(ENVIRONMENTS),
+            "siem": random.choice(SIEMS)
         })
 
     # 2. Simulate History
@@ -135,6 +140,7 @@ def main():
         creator = random.choice(AUTHORS)
         
         rule_mitre = random_mitre()
+        current_severity = random.choice(SEVERITIES)
         creation_event = {
             "rule_name": rule["title"],
             "company": rule["company"],
@@ -142,6 +148,8 @@ def main():
             "action_type": "creation",
             "rule_status": "active",
             "tuning_driver": "new_use_case",
+            "severity": current_severity,
+            "siem": rule["siem"],
             "ticket": f"TKT-{random.randint(1000, 9999)}",
             "description": f"Initial creation of {rule['title']}",
             "rule_content": SIGMA_TEMPLATE.format(
@@ -182,6 +190,8 @@ def main():
             
             if random.random() < 0.4:
                 rule_mitre = random_mitre()
+            if random.random() < 0.3:
+                current_severity = random.choice(SEVERITIES)
             mod_event = {
                 "rule_name": rule["title"],
                 "company": rule["company"],
@@ -189,6 +199,8 @@ def main():
                 "action_type": "modification",
                 "rule_status": "active",
                 "tuning_driver": driver,
+                "severity": current_severity,
+                "siem": rule["siem"],
                 "ticket": f"TKT-{random.randint(1000, 9999)}",
                 "description": f"Tuning update: {driver} applied.",
                 "rule_content": SIGMA_TEMPLATE.format(
@@ -222,6 +234,8 @@ def main():
                     "action_type": "elimination",
                     "rule_status": "disabled",
                     "tuning_driver": "maintenance",
+                    "severity": current_severity,
+                    "siem": rule["siem"],
                     "ticket": f"TKT-{random.randint(1000, 9999)}",
                     "description": "Rule deprecated/removed.",
                     "rule_content": "DELETED",
@@ -239,8 +253,8 @@ def main():
 
     sql = """
     INSERT INTO archives
-    (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, created_at, mitre)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    (rule_name, company, environment, action_type, rule_status, tuning_driver, severity, siem, ticket, description, rule_content, modified_by, created_at, mitre)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     for e in events:
@@ -251,6 +265,8 @@ def main():
             e['action_type'],
             e['rule_status'],
             e['tuning_driver'],
+            e.get('severity'),
+            e.get('siem'),
             e['ticket'],
             e['description'],
             e['rule_content'],

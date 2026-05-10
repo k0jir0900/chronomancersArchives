@@ -223,6 +223,10 @@ def init_db():
             cursor.execute("ALTER TABLE archives ADD COLUMN tags JSON NULL")
         except mysql.connector.Error:
             pass
+        try:
+            cursor.execute("ALTER TABLE archives ADD COLUMN severity VARCHAR(20) NULL")
+        except mysql.connector.Error:
+            pass
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tags_pool (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -419,7 +423,7 @@ def history():
     environments = [row['environment'] for row in cursor.fetchall()]
 
     cursor.execute("""
-        SELECT a.rule_name, a.company, a.environment, a.rule_status,
+        SELECT a.rule_name, a.company, a.environment, a.rule_status, a.mitre,
                c.version
         FROM archives a
         JOIN (
@@ -430,6 +434,14 @@ def history():
         ORDER BY a.rule_name
     """)
     all_rules_metadata = cursor.fetchall()
+    for row in all_rules_metadata:
+        m = row.get('mitre')
+        if isinstance(m, str):
+            try:
+                m = json.loads(m)
+            except (json.JSONDecodeError, ValueError):
+                m = None
+        row['has_mitre'] = bool(m)
 
     selected_rule = request.args.get('rule_name')
     selected_company = request.args.get('company')
@@ -472,6 +484,7 @@ def history():
                 'first_created': oldest['created_at'],
                 'last_modified': latest['created_at'],
                 'current_status': latest['rule_status'],
+                'current_severity': latest.get('severity'),
                 'total_events': len(timeline_data),
                 'creator': oldest.get('modified_by', 'Unknown'),
                 'last_modifier': latest.get('modified_by', 'Unknown'),
@@ -686,7 +699,7 @@ def diff_rules():
         
     cursor = conn.cursor(dictionary=True)
     
-    cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
+    cursor.execute("SELECT rule_name FROM archives GROUP BY rule_name HAVING COUNT(*) >= 2 ORDER BY rule_name")
     all_rules = [row['rule_name'] for row in cursor.fetchall()]
     
     versions = []
@@ -694,8 +707,11 @@ def diff_rules():
     rule2_data = None
     
     if selected_rule:
-        cursor.execute("SELECT id, created_at, action_type, modified_by, tuning_driver FROM archives WHERE rule_name = %s ORDER BY created_at DESC", (selected_rule,))
-        versions = cursor.fetchall()
+        cursor.execute("SELECT id, created_at, action_type, modified_by, tuning_driver FROM archives WHERE rule_name = %s ORDER BY created_at ASC", (selected_rule,))
+        rows = cursor.fetchall()
+        for i, v in enumerate(rows):
+            v['version'] = i + 1
+        versions = list(reversed(rows))
         
         if v1_id:
             cursor.execute("SELECT rule_content, created_at FROM archives WHERE id = %s", (v1_id,))
@@ -774,11 +790,14 @@ def register():
         action_type = request.form.get('action_type')
         rule_status = request.form.get('rule_status', 'active')
         tuning_driver = request.form.get('tuning_driver', 'maintenance')
+        severity = request.form.get('severity') or None
+        if severity and severity not in ('critical', 'high', 'medium', 'low', 'informative'):
+            severity = None
         ticket = request.form.get('ticket')
         description = request.form.get('description')
         rule_content = request.form.get('rule_content')
 
-        if not rule_name or not company or not environment or not action_type or not description or not rule_content:
+        if not rule_name or not company or not environment or not action_type or not severity or not description or not rule_content:
             flash('All mandatory fields must be filled.', 'error')
             return redirect(url_for('register'))
 
@@ -831,8 +850,8 @@ def register():
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modified_by, mitre, siem, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, ticket, description, rule_content, modifier_name, mitre_data, siem, tags_data)
+            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modified_by, mitre, siem, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modifier_name, mitre_data, siem, tags_data)
 
             try:
                 cursor.execute(query, values)
@@ -2004,4 +2023,4 @@ def audit():
 
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=True)
