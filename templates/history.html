@@ -4,6 +4,14 @@
 
 {% block head %}
 <style>
+.ca-rule-opt {
+    padding: .35rem .75rem;
+    cursor: pointer;
+    font-size: .875rem;
+    color: var(--text-primary);
+}
+.ca-rule-opt:hover { background: rgba(255,255,255,.06); }
+.ca-rule-opt[data-value=""] { color: var(--text-secondary); font-style: italic; }
 .ca-status-badge {
     display: inline-block;
     width: 82px;
@@ -50,10 +58,16 @@
 {% else %}
 <!-- Search Inputs + Actions -->
 <div class="d-flex gap-2 align-items-center mb-4">
-    <select id="searchRule" class="form-select ca-search-input" style="flex:5;min-width:0;">
-        <option value="" selected hidden>CDU Name</option>
-        {% for rule in rules %}<option value="{{ rule|lower }}" {% if selected_rule and rule|lower == selected_rule|lower %}selected{% endif %}>{{ rule }}</option>{% endfor %}
-    </select>
+    <div id="searchRuleWrap" style="flex:5;min-width:0;position:relative;">
+        <div id="searchRuleDisplay" class="form-select ca-search-input" style="cursor:pointer;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">CDU Name</div>
+        <div id="searchRulePanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+            <input type="text" id="searchRuleTyping" class="form-control ca-search-input" placeholder="Search CDU..." style="border-radius:.375rem .375rem 0 0;border:none;border-bottom:1px solid var(--border);">
+            <div id="searchRuleOptions" style="max-height:220px;overflow-y:auto;">
+                <div class="ca-rule-opt" data-value="">All CDUs</div>
+                {% for rule in rules %}<div class="ca-rule-opt" data-value="{{ rule|lower }}" {% if selected_rule and rule|lower == selected_rule|lower %}data-preselected="1"{% endif %}>{{ rule }}</div>{% endfor %}
+            </div>
+        </div>
+    </div>
     <select id="searchCompany" class="form-select ca-search-input" style="flex:1;min-width:0;">
         <option value="" selected hidden>Company</option>
         {% for company in companies %}<option value="{{ company|lower }}" {% if selected_company and company|lower == selected_company|lower %}selected{% endif %}>{{ company }}</option>{% endfor %}
@@ -87,29 +101,71 @@
 {% if summary %}
 
 <!-- PDF Export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
-    function exportToPDF() {
-        const reportContainer = document.getElementById('report-container');
+    async function exportToPDF() {
+        const src = document.getElementById('report-container');
         const ruleName = "{{ summary.rule_name|default('Custom_Report') }}";
-        const opt = {
-            margin: 0.5,
-            filename: `Report_CDU_${ruleName}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'] }
-        };
-        reportContainer.style.display = 'block';
-        html2pdf().from(reportContainer).set(opt).toPdf().get('pdf').then(function (pdf) {
-            var totalPages = pdf.internal.getNumberOfPages();
-            for (var i = 1; i <= totalPages; i++) {
-                pdf.setPage(i);
+
+        // Render inside an isolated iframe — html2canvas never touches the main document
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:0;left:-9999px;width:816px;height:10000px;border:none;';
+        document.body.appendChild(iframe);
+
+        const iDoc = iframe.contentDocument;
+        iDoc.open();
+        iDoc.write('<!DOCTYPE html><html><head><style>' +
+            '* { color: #000 !important; background: transparent !important; box-sizing: border-box; }' +
+            'body { background: #fff !important; margin: 0; font-family: "Segoe UI", sans-serif; }' +
+            '</style></head><body>' + src.innerHTML + '</body></html>');
+        iDoc.close();
+
+        await new Promise(r => setTimeout(r, 150));
+
+        try {
+            const canvas = await html2canvas(iDoc.body, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                windowWidth: 816
+            });
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 36;
+            const contentW = pageW - margin * 2;
+            const contentH = pageH - margin * 2;
+            const scale = contentW / canvas.width;
+
+            let srcY = 0;
+            let page = 1;
+
+            while (srcY < canvas.height) {
+                const sliceH = Math.min(Math.round(contentH / scale), canvas.height - srcY);
+                const sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = canvas.width;
+                sliceCanvas.height = sliceH;
+                sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+                if (page > 1) pdf.addPage();
+                pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.98), 'JPEG', margin, margin, contentW, sliceH * scale);
+
                 pdf.setFontSize(10);
                 pdf.setTextColor(100);
-                pdf.text(`${i}`, pdf.internal.pageSize.getWidth() - 0.5, pdf.internal.pageSize.getHeight() - 0.5);
+                pdf.text(String(page), pageW - margin, pageH - 18);
+
+                srcY += sliceH;
+                page++;
             }
-        }).save().then(() => { reportContainer.style.display = 'none'; });
+
+            pdf.save(`Report_CDU_${ruleName}.pdf`);
+        } finally {
+            document.body.removeChild(iframe);
+        }
     }
 </script>
 
@@ -814,11 +870,61 @@
         let currentPage = 1;
         let filteredRows = [];
         const allRows = Array.from(document.querySelectorAll('.rule-row'));
-        const searchRuleInput = document.getElementById('searchRule');
+        const searchRuleWrap = document.getElementById('searchRuleWrap');
+        const searchRuleDisplay = document.getElementById('searchRuleDisplay');
+        const searchRulePanel = document.getElementById('searchRulePanel');
+        const searchRuleTyping = document.getElementById('searchRuleTyping');
+        const searchRuleOptContainer = document.getElementById('searchRuleOptions');
         const searchCompanyInput = document.getElementById('searchCompany');
         const searchEnvInput = document.getElementById('searchEnv');
         const searchStatusInput = document.getElementById('searchStatus');
         const searchMitreInput = document.getElementById('searchMitre');
+
+        let selectedRuleValue = '';
+
+        // Pre-select if server sent a value
+        (() => {
+            const pre = searchRuleOptContainer.querySelector('.ca-rule-opt[data-preselected]');
+            if (pre) { selectedRuleValue = pre.dataset.value; searchRuleDisplay.textContent = pre.textContent; }
+        })();
+
+        // Toggle dropdown panel
+        searchRuleDisplay.addEventListener('click', () => {
+            const open = searchRulePanel.style.display !== 'none';
+            searchRulePanel.style.display = open ? 'none' : 'block';
+            if (!open) {
+                searchRuleTyping.value = '';
+                Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(o => {
+                    if (!o.dataset.cascadeHidden) o.style.display = '';
+                });
+                searchRuleTyping.focus();
+            }
+        });
+
+        // Close on outside click
+        document.addEventListener('click', e => {
+            if (!searchRuleWrap.contains(e.target)) searchRulePanel.style.display = 'none';
+        });
+
+        // Text search within open dropdown
+        searchRuleTyping.addEventListener('input', () => {
+            const q = searchRuleTyping.value.toLowerCase();
+            Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
+                if (opt.dataset.cascadeHidden) { opt.style.display = 'none'; return; }
+                if (!opt.dataset.value) { opt.style.display = ''; return; }
+                opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
+            });
+        });
+
+        // Select an option
+        searchRuleOptContainer.addEventListener('click', e => {
+            const opt = e.target.closest('.ca-rule-opt');
+            if (!opt) return;
+            selectedRuleValue = opt.dataset.value;
+            searchRuleDisplay.textContent = opt.dataset.value ? opt.textContent : 'CDU Name';
+            searchRulePanel.style.display = 'none';
+            applyFilters();
+        });
 
         function updateRuleOptions() {
             const compVal = searchCompanyInput.value.toLowerCase();
@@ -831,17 +937,26 @@
                 (statusVal === "" || (row.dataset.status || "") === statusVal) &&
                 (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
             ).map(r => r.dataset.rule));
-            Array.from(searchRuleInput.options).forEach(opt => {
-                if (!opt.value) return;
-                opt.hidden = !validRules.has(opt.value);
+            const q = searchRuleTyping.value.toLowerCase();
+            Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
+                if (!opt.dataset.value) return;
+                if (!validRules.has(opt.dataset.value)) {
+                    opt.dataset.cascadeHidden = '1';
+                    opt.style.display = 'none';
+                } else {
+                    delete opt.dataset.cascadeHidden;
+                    opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
+                }
             });
-            if (searchRuleInput.value && !validRules.has(searchRuleInput.value))
-                searchRuleInput.value = '';
+            if (selectedRuleValue && !validRules.has(selectedRuleValue)) {
+                selectedRuleValue = '';
+                searchRuleDisplay.textContent = 'CDU Name';
+            }
         }
 
         function applyFilters() {
             updateRuleOptions();
-            const ruleVal = searchRuleInput.value;
+            const ruleVal = selectedRuleValue;
             const compVal = searchCompanyInput.value.toLowerCase();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
@@ -900,7 +1015,7 @@
             }
         }
 
-        [searchRuleInput, searchCompanyInput, searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
+        [searchCompanyInput, searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
             if (inp) inp.addEventListener('change', applyFilters);
         });
         applyFilters();

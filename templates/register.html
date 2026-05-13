@@ -12,11 +12,16 @@
             <div class="ca-form-section">
                 <div class="ca-form-field">
                     <label class="ca-label">CDU Name <span class="text-danger">*</span></label>
-                    <select id="ruleName-select" class="form-select ca-input" onchange="handleRuleSelect(this)">
-                        <option value="" selected hidden>Select an option</option>
-                        <option value="__new__">— New CDU —</option>
-                        {% for rule in rules %}<option value="{{ rule }}">{{ rule }}</option>{% endfor %}
-                    </select>
+                    <div id="ruleNameWrap" style="position:relative;">
+                        <div id="ruleNameDisplay" class="form-select ca-input" style="cursor:pointer;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Select an option</div>
+                        <div id="ruleNamePanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+                            <input type="text" id="ruleNameTyping" class="form-control ca-input" placeholder="Search CDU..." style="border-radius:.375rem .375rem 0 0;border:none;border-bottom:1px solid var(--border);">
+                            <div id="ruleNameOptions" style="max-height:220px;overflow-y:auto;">
+                                <div class="ca-rule-opt" data-value="__new__">— New CDU —</div>
+                                {% for rule in rules %}<div class="ca-rule-opt" data-value="{{ rule }}">{{ rule }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
                     <input type="text" id="ruleName-input" name="rule_name" class="form-control ca-input mt-2"
                         placeholder="Enter new CDU name..." style="display:none;" autocomplete="off">
                 </div>
@@ -241,6 +246,14 @@
     font-size: .775rem;
     color: var(--text-muted);
 }
+.ca-rule-opt {
+    padding: .35rem .75rem;
+    cursor: pointer;
+    font-size: .875rem;
+    color: var(--text-primary);
+}
+.ca-rule-opt:hover { background: rgba(255,255,255,.06); }
+.ca-rule-opt[data-value="__new__"] { color: var(--accent); }
 .ca-form-footer {
     padding-top: 1.5rem;
     border-top: 1px solid var(--border);
@@ -302,20 +315,54 @@
 </style>
 
 <script>
-function handleRuleSelect(sel) {
-    const input = document.getElementById('ruleName-input');
-    if (sel.value === '__new__') {
-        input.style.display = '';
-        input.required = true;
-        input.value = '';
-        input.focus();
-    } else {
-        input.style.display = 'none';
-        input.required = false;
-        input.value = sel.value;
-        if (sel.value) loadRuleData(sel.value);
-    }
-}
+(() => {
+    const wrap = document.getElementById('ruleNameWrap');
+    const display = document.getElementById('ruleNameDisplay');
+    const panel = document.getElementById('ruleNamePanel');
+    const typing = document.getElementById('ruleNameTyping');
+    const optContainer = document.getElementById('ruleNameOptions');
+    const textInput = document.getElementById('ruleName-input');
+
+    display.addEventListener('click', () => {
+        const open = panel.style.display !== 'none';
+        panel.style.display = open ? 'none' : 'block';
+        if (!open) {
+            typing.value = '';
+            Array.from(optContainer.querySelectorAll('.ca-rule-opt')).forEach(o => o.style.display = '');
+            typing.focus();
+        }
+    });
+
+    document.addEventListener('click', e => {
+        if (!wrap.contains(e.target)) panel.style.display = 'none';
+    });
+
+    typing.addEventListener('input', () => {
+        const q = typing.value.toLowerCase();
+        Array.from(optContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
+            opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
+        });
+    });
+
+    optContainer.addEventListener('click', e => {
+        const opt = e.target.closest('.ca-rule-opt');
+        if (!opt) return;
+        const val = opt.dataset.value;
+        display.textContent = opt.textContent;
+        panel.style.display = 'none';
+        if (val === '__new__') {
+            textInput.style.display = '';
+            textInput.required = true;
+            textInput.value = '';
+            textInput.focus();
+        } else {
+            textInput.style.display = 'none';
+            textInput.required = false;
+            textInput.value = val;
+            if (val) loadRuleData(val);
+        }
+    });
+})();
 
 async function loadRuleData(ruleName) {
     try {

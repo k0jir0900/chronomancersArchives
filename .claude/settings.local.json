@@ -26,7 +26,9 @@
       "Bash(grep -oE '\\(baseline|os_family|application_family|hardware_family|network_family|vendor|criticality\\)[^<]{0,80}' /tmp/hist_detail.html)",
       "Bash(docker restart chronomancersarchives-chronomancers_archives-1 *)",
       "Bash(echo \"exit=$?\")",
-      "Bash(Start-Sleep -Seconds 15)"
+      "Bash(Start-Sleep -Seconds 15)",
+      "WebFetch(domain:api.cdnjs.com)",
+      "PowerShell(head *)"
     ]
   }
 }
