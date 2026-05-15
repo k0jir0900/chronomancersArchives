@@ -16,6 +16,13 @@
 - No error handling for scenarios that cannot happen.
 - Three similar lines is better than a premature abstraction.
 
+## Reusability & Structure
+
+- Evaluate code for multi-section utility: If logic can be used in more than one place, extract it into a separate function or module.
+- Variable Passing: Use explicit parameter passing for reusable components.
+- Functional Structure: Break down logic into small, focused functions to ensure clean and fast debugging.
+- No Monolithic Blocks: Avoid large, single blocks of code; prioritize modularity.
+
 ## Review Rules
 
 - State the bug. Show the fix. Stop.
@@ -34,3 +41,22 @@
 - Plain hyphens and straight quotes only.
 - Natural language characters (accented letters, CJK, etc.) are fine when the content requires them.
 - Code output must be copy-paste safe.
+
+## Development Standards
+
+- Use Docker and Docker Compose for the development environment.
+- Provide clear instructions on how to build and run containers.
+- Use multi-stage builds to keep images lightweight.
+
+## Security & Secrets Management
+
+- Encrypted Storage: All secrets must be stored in an encrypted, non-recoverable volume mounted at runtime.
+- No Hardcoding: Never include secrets in environment variables or Dockerfiles.
+- Secret Lifecycle: Provide specific docker exec commands to inject and securely wipe secrets.
+- Documentation: Every secret must be documented including its purpose and management command.
+- Non-Root Execution: Containers must run as a non-privileged USER with access to the secret volume.
+
+## Operations & Commands
+
+- Add secret: docker exec -it <container_name> sh -c "echo 'value' > /mnt/secrets/key_name"
+- Remove secret: docker exec -it <container_name> sh -c "shred -u /mnt/secrets/key_name"

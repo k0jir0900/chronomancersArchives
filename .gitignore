@@ -17,3 +17,5 @@ static/uploads/
 # OS
 .DS_Store
 Thumbs.db
+*.png
+PROGRESS_REPORTS.md

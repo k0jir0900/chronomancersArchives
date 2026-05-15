@@ -1,0 +1,69 @@
+reports:
+- id: activity_timeline
+  name: Activity Timeline
+  icon: bi-calendar3
+  description: CDU creation and modification activity distribution over time.
+  filters:
+  - company
+  - date_range
+  sections:
+  - id: summary
+    title: Summary
+    type: stats
+    query: |
+      SELECT (SELECT COUNT(DISTINCT rule_name) FROM archives) AS unique_rules,
+             COUNT(*) AS total_records,
+             SUM(CASE WHEN action_type = 'creation' THEN 1 ELSE 0 END) AS creations,
+             SUM(CASE WHEN action_type = 'modification' THEN 1 ELSE 0 END) AS modifications,
+             SUM(CASE WHEN action_type = 'elimination' THEN 1 ELSE 0 END) AS eliminations,
+             MIN(DATE(created_at)) AS from_date,
+             MAX(DATE(created_at)) AS to_date,
+             (SELECT rule_name FROM archives
+              GROUP BY rule_name ORDER BY COUNT(*) DESC LIMIT 1) AS top_rule,
+             (SELECT COUNT(*) FROM archives
+              GROUP BY rule_name ORDER BY COUNT(*) DESC LIMIT 1) AS top_rule_count
+      FROM archives
+      {where}
+  - id: actions
+    title: Actions
+    type: table
+    query: |
+      SELECT action_type, COUNT(*) AS count
+      FROM archives
+      {where}
+      GROUP BY action_type
+      ORDER BY count DESC
+  - id: tuning_driver
+    title: Tuning Driver
+    type: table
+    query: |
+      SELECT COALESCE(tuning_driver, 'unknown') AS tuning_driver,
+             COUNT(*) AS count
+      FROM archives
+      {where}
+      GROUP BY tuning_driver
+      ORDER BY count DESC
+  - id: timeline
+    title: Activity Timeline
+    type: timeline
+  - id: cdu_activity
+    title: CDU Activity Log
+    type: table
+    query: |
+      SELECT date, rule_name, action_type, version, description, modified_by
+      FROM (
+          SELECT DATE(created_at) AS date,
+                 rule_name,
+                 action_type,
+                 ROW_NUMBER() OVER (
+                     PARTITION BY rule_name, COALESCE(company,''), COALESCE(environment,'')
+                     ORDER BY created_at, id
+                 ) AS version,
+                 LEFT(COALESCE(description, '—'), 200) AS description,
+                 modified_by,
+                 created_at,
+                 company
+          FROM archives
+      ) sub
+      {where}
+      ORDER BY created_at DESC

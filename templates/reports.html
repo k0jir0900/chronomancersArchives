@@ -1,0 +1,735 @@
+{% extends 'base.html' %}
+{% block title %}Reports – Chronomancers Archives{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block head %}
+<style>
+.rp-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    flex: 1 1 auto;
+}
+.rp-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+    color: inherit;
+}
+.rp-card-icon {
+    width: 44px; height: 44px;
+    background: rgba(99,102,241,.15);
+    border-radius: .5rem;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; color: var(--accent);
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+.rp-card-body { flex: 1; }
+.rp-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+}
+.rp-section-title {
+    font-size: .8rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--text-muted);
+    margin-bottom: 1rem; padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border);
+}
+.rp-stat { text-align: center; padding: .75rem; }
+.rp-stat-value { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+.rp-stat-label { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; text-transform: capitalize; }
+.rp-table { font-size: .875rem; }
+.rp-table th { font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.rp-badge { display:inline-block; padding:2px 8px; border-radius:3px; font-size:.75rem; font-weight:600; }
+.sev-critical    { background:#da3633;color:#fff; }
+.sev-high        { background:#f0883e;color:#fff; }
+.sev-medium      { background:#d29922;color:#fff; }
+.sev-low         { background:#3081f7;color:#fff; }
+.sev-informative { background:#6e7681;color:#fff; }
+.sev-not-set     { background:#30363d;color:#8b949e; }
+.act-creation     { background:rgba(35,134,54,.2);color:#3fb950; }
+.act-modification { background:rgba(210,153,34,.15);color:#d29922; }
+.act-elimination  { background:rgba(218,54,51,.15);color:#f85149; }
+.rp-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+}
+.rp-grid .rp-section { margin-bottom: 0; width: 100%; display: block; }
+.rp-table-compact td, .rp-table-compact th { padding-top: 3px !important; padding-bottom: 3px !important; line-height: 1.35; }
+.rp-selector-table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .65rem .85rem; }
+.rp-selector-table td { padding: .9rem .85rem; border-bottom: 1px solid var(--border); }
+.rp-selector-table tbody tr:last-child td { border-bottom: 0; }
+.rp-selector-table tbody tr:hover { background: rgba(99,102,241,.05); }
+.rp-filterbar { background: var(--bg-card); border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if not selected %}
+<!-- Report selector -->
+<div class="rp-section">
+    <table class="table align-middle mb-0 rp-selector-table">
+        <thead>
+            <tr>
+                <th style="width:3rem;"></th>
+                <th style="width:12rem;white-space:nowrap;">Report</th>
+                <th>Description</th>
+                <th style="width:8rem;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cfg in configs %}
+            <tr>
+                <td><i class="bi {{ cfg.icon or 'bi-file-bar-graph' }}" style="color:var(--accent);font-size:1.4rem;"></i></td>
+                <td class="fw-semibold" style="font-size:1rem;">{{ cfg.name }}</td>
+                <td class="text-secondary" style="font-size:.92rem;">{{ cfg.description }}</td>
+                <td class="text-end">
+                    <a href="/reports?id={{ cfg.id }}&run=1" class="btn btn-sm btn-primary">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>Open
+                    </a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-secondary text-center py-4">No reports configured.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<!-- Filter bar -->
+<div class="rp-filterbar mb-3">
+    <form method="get" action="/reports" id="filterForm" class="d-flex flex-wrap align-items-center gap-2">
+        <input type="hidden" name="id" value="{{ selected.id }}">
+        <input type="hidden" name="run" value="1">
+
+        {% if 'date_range' in selected.filters %}
+        <select id="quickRange" class="form-select form-select-sm ca-search-input" style="width:auto;min-width:130px;">
+            <option value=""         {% if preset == '' %}selected{% endif %}>All time</option>
+            <option value="week"     {% if preset == 'week' %}selected{% endif %}>This week</option>
+            <option value="lastweek" {% if preset == 'lastweek' %}selected{% endif %}>Last week</option>
+            <option value="month"    {% if preset == 'month' %}selected{% endif %}>This month</option>
+            <option value="7d"       {% if preset == '7d' %}selected{% endif %}>Last 7 days</option>
+            <option value="30d"      {% if preset == '30d' %}selected{% endif %}>Last 30 days</option>
+            <option value="90d"      {% if preset == '90d' %}selected{% endif %}>Last 90 days</option>
+        </select>
+        <span style="display:inline-block;width:1px;height:22px;background:var(--border);margin:0 .75rem;"></span>
+        <input type="date" id="dateFrom" name="from" class="form-control form-control-sm ca-search-input" value="{{ date_from }}" style="width:auto;" title="From">
+        <span class="text-secondary">–</span>
+        <input type="date" id="dateTo" name="to" class="form-control form-control-sm ca-search-input" value="{{ date_to }}" style="width:auto;" title="To">
+        {% endif %}
+
+        <div class="d-flex gap-2 ms-auto">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Generate
+            </button>
+            {% if run and report_data %}
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="exportReportPDF()">
+                <i class="bi bi-file-pdf me-1"></i>Export PDF
+            </button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{% if run and report_data %}
+{% if report_data.get('error') %}
+<div class="alert alert-danger">Error: {{ report_data.error }}</div>
+{% else %}
+
+<div id="report-content">
+    <!-- Report header -->
+    <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="rp-card-icon" style="margin-bottom:0;flex-shrink:0;">
+            <i class="bi {{ selected.icon or 'bi-file-bar-graph' }}"></i>
+        </div>
+        <div>
+            <h4 class="mb-0 fw-semibold">{{ report_title }}</h4>
+            <span class="text-secondary small">
+                {{ selected.name }}
+                {% if date_from %}&nbsp;·&nbsp;{{ date_from }}{% endif %}
+                {% if date_to %} – {{ date_to }}{% endif %}
+            </span>
+        </div>
+    </div>
+
+    {# Shared macros #}
+    {% macro cell(col, val) %}
+        {%- if col == 'action_type' -%}
+            {{ (val or '—') | title }}
+        {%- elif col == 'actions' -%}
+            <span class="rp-badge act-{{ (val or '') | lower }}">{{ (val or '—') | title }}</span>
+        {%- elif col == 'rule_status' -%}
+            <span class="rp-badge" style="background:{% if val == 'active' %}rgba(35,134,54,.2);color:#3fb950;border:1px solid rgba(35,134,54,.4){% else %}rgba(218,54,51,.15);color:#f85149;border:1px solid rgba(218,54,51,.4){% endif %};">{{ (val or '—') | title }}</span>
+        {%- elif col == 'severity' -%}
+            <span class="rp-badge sev-{{ (val or 'not-set') | lower | replace(' ','-') }}">{{ (val or '—') | title }}</span>
+        {%- elif col == 'environment' -%}
+            <span class="badge bg-secondary">{{ (val or '') | upper }}</span>
+        {%- elif col == 'tuning_driver' -%}
+            {{ (val or '—') | humanize_td }}
+        {%- else -%}{{ val }}{%- endif -%}
+    {% endmacro %}
+
+    {% macro short_table(rows, with_bars=false) %}
+    {% set cols = rows[0].keys() | list %}
+    {% set val_col = cols[-1] %}
+    {% set max_val = (rows | map(attribute=val_col) | map('int') | list | max) or 1 %}
+    <table class="table table-sm rp-table rp-table-compact mb-0">
+        <thead><tr>
+            {% for col in cols %}<th{% if loop.last %} class="text-end" style="width:5rem;"{% endif %}>{{ col | replace('_',' ') | title }}</th>{% endfor %}
+            {% if with_bars %}<th style="width:40%;"></th>{% endif %}
+        </tr></thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                {% for col, val in row.items() %}
+                <td{% if loop.last %} class="text-end fw-semibold"{% endif %}>
+                    {%- if col == 'action_type' -%}{{ (val or '—') | title }}
+                    {%- elif col == 'tuning_driver' -%}{{ (val or '—') | humanize_td }}
+                    {%- else -%}{{ cell(col, val) }}{%- endif -%}
+                </td>
+                {% endfor %}
+                {% if with_bars %}
+                {% set pct = (row[val_col] | int) * 100 // max_val %}
+                <td><div style="height:6px;border-radius:3px;background:rgba(99,102,241,.15);overflow:hidden;"><div style="height:100%;width:{{ pct }}%;background:var(--accent);"></div></div></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endmacro %}
+
+    <div class="rp-grid">
+    {% for sec in report_data.sections %}
+
+    {# Determine full-width #}
+    {% if sec.type in ['stats', 'timeline', 'mitre'] %}
+        {% set is_full = true %}
+    {% elif sec.type == 'table' and sec.rows and sec.rows[0].keys() | list | length > 3 %}
+        {% set is_full = true %}
+    {% elif sec.type == 'table' and not sec.rows %}
+        {% set is_full = true %}
+    {% else %}
+        {% set is_full = false %}
+    {% endif %}
+
+    <div class="rp-section{% if is_full %} rp-full{% endif %}">
+        <div class="rp-section-title">{{ sec.title }}</div>
+
+        {# ── STATS ── #}
+        {% if sec.type == 'stats' and sec.row %}
+        {% set row = sec.row %}
+        {# Row 1: metrics matching home format #}
+        <div class="row g-2 mb-2">
+            {% if row.unique_rules is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;"><i class="bi bi-list-ol"></i></div>
+                    <div><p class="stat-label">Total Unique CDUs</p><h3 class="stat-value">{{ row.unique_rules or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if row.total_records is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(56,139,253,.15);color:#58a6ff;"><i class="bi bi-layers"></i></div>
+                    <div><p class="stat-label">Total Actions</p><h3 class="stat-value">{{ row.total_records or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if row.creations is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(35,134,54,.15);color:#3fb950;"><i class="bi bi-plus-circle-fill"></i></div>
+                    <div><p class="stat-label">Creations</p><h3 class="stat-value">{{ row.creations or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if row.modifications is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(210,153,34,.15);color:#d29922;"><i class="bi bi-pencil"></i></div>
+                    <div><p class="stat-label">Modifications</p><h3 class="stat-value">{{ row.modifications or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if row.eliminations is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(218,54,51,.15);color:#f85149;"><i class="bi bi-trash3"></i></div>
+                    <div><p class="stat-label">Eliminations</p><h3 class="stat-value">{{ row.eliminations or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {# Row 2: Most Active CDU - box always visible, blank when count < 2 #}
+        {% set has_top = row.top_rule and (row.top_rule_count or 0) | int >= 2 %}
+        {% set cdu_name = (row.top_rule | replace(':', ': ') | replace(':  ', ': ')) if has_top else '' %}
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="ca-stat-icon" style="background:rgba(163,113,247,.15);color:#a371f7;flex-shrink:0;"><i class="bi bi-trophy"></i></div>
+                    <div>
+                        <p class="stat-label mb-1">Most Active CDU</p>
+                        <div class="d-flex align-items-baseline gap-2 flex-wrap" style="min-height:1.4rem;">
+                            {% if has_top %}
+                            <span style="font-size:1.4rem;font-weight:700;color:#a371f7;line-height:1;">{{ row.top_rule_count }}</span>
+                            <span class="text-secondary" style="font-size:.82rem;">actions</span>
+                            <span class="text-secondary">|</span>
+                            <span class="fw-medium" style="font-size:.95rem;" title="{{ cdu_name }}">{{ cdu_name }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── TABLE ── #}
+        {% elif sec.type == 'table' and sec.rows %}
+        {% set cols = sec.rows[0].keys() | list %}
+
+        {% if cols | length <= 3 %}
+        {{ short_table(sec.rows, with_bars=true) }}
+        {% else %}
+        <div class="table-responsive">
+        <table class="table table-sm rp-table rp-table-compact mb-0">
+            <thead><tr><th style="width:2.5rem;">#</th>{% for col in cols %}<th>{{ col | replace('_',' ') | title }}</th>{% endfor %}</tr></thead>
+            <tbody>
+                {% for row in sec.rows %}
+                <tr>
+                    <td class="text-secondary" style="font-size:.75rem;">{{ loop.index }}</td>
+                    {% for col, val in row.items() %}
+                    <td style="{% if col == 'description' %}min-width:200px;max-width:360px;word-break:break-word;white-space:normal;{% elif col == 'modified_by' %}min-width:130px;white-space:normal;{% endif %}">
+                        {%- if col == 'actions' -%}
+                            {% for act in (val or '') | string | split(',') %}{% if act.strip() %}<span class="rp-badge act-{{ act.strip() | lower }}" style="font-size:.7rem;margin-right:2px;">{{ act.strip() | title }}</span>{% endif %}{% endfor %}
+                        {%- else -%}{{ cell(col, val) }}{%- endif -%}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+
+        {% elif sec.type == 'table' %}
+        <p class="text-secondary small mb-0">No data for the selected scope.</p>
+
+        {# ── MITRE ── #}
+        {% elif sec.type == 'mitre' %}
+        {% if sec.rows %}
+        <div class="row g-3 align-items-start">
+            <div class="col-lg-6">
+                <table class="table table-sm rp-table mb-0">
+                    <thead><tr><th>Technique</th><th>Name</th><th>Tactic</th><th class="text-end">CDUs</th></tr></thead>
+                    <tbody>
+                        {% for row in sec.rows %}
+                        <tr>
+                            <td><code style="font-size:.78rem;">{{ row.id }}</code></td>
+                            <td>{{ row.name or '—' }}</td>
+                            <td class="text-secondary small">{{ row.tactic | title if row.tactic else '—' }}</td>
+                            <td class="text-end fw-semibold">{{ row.count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-lg-6">
+                <div style="position:relative;height:{{ [sec.rows | length * 30, 160] | max }}px;max-height:340px;">
+                    <canvas id="chart-{{ sec.id }}"></canvas>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-secondary small mb-0">No MITRE data for the selected scope.</p>
+        {% endif %}
+
+        {# ── TIMELINE ── #}
+        {% elif sec.type == 'timeline' %}
+        {% if sec.rows %}
+        <div style="position:relative;width:100%;height:320px;">
+            <canvas id="chart-{{ sec.id }}" style="width:100%!important;"></canvas>
+        </div>
+        {% else %}
+        <p class="text-secondary small mb-0">No timeline data for the selected scope.</p>
+        {% endif %}
+
+        {% endif %}
+    </div>
+    {% endfor %}
+    </div>
+
+</div><!-- /#report-content -->
+
+{# ─────────── HIDDEN SERVER-RENDERED PDF CONTAINER ─────────── #}
+{% set sev_map = {'critical':'#963838','high':'#a8651d','medium':'#8a6d00','low':'#2a5d8f','informative':'#5a6168'} %}
+{% set act_map = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
+{% set act_text = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
+
+{% macro pdf_badge(text, bg, fg='#fff') -%}
+<span style="background:{{ bg }};color:{{ fg }};padding:1px 7px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ text }}</span>
+{%- endmacro %}
+
+{% macro pdf_cell(col, val) -%}
+{%- if col == 'action_type' -%}
+    {{ (val or '—') | title }}
+{%- elif col == 'actions' -%}
+    {%- for act in (val or '') | string | split(',') -%}
+        {%- if act.strip() -%}{{ pdf_badge(act.strip()|title, act_map.get(act.strip()|lower, '#6e7681')) }} {% endif -%}
+    {%- endfor -%}
+{%- elif col == 'rule_status' -%}
+    {{ pdf_badge(val|title, '#238636' if (val or '')|lower == 'active' else '#da3633') }}
+{%- elif col == 'severity' -%}
+    {{ pdf_badge(val|title, sev_map.get((val or '')|lower, '#6e7681')) }}
+{%- elif col == 'environment' -%}
+    {{ pdf_badge((val or '')|upper, '#444') }}
+{%- elif col == 'tuning_driver' -%}
+    {{ (val or '—') | humanize_td }}
+{%- else -%}{{ val if val is not none else '—' }}{%- endif -%}
+{% endmacro %}
+
+<div id="report-pdf-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Segoe UI',Arial,sans-serif;">
+
+    <div style="border-bottom:3px solid #3d4d80;padding-bottom:18px;margin-bottom:24px;">
+        <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3d4d80;">{{ report_title }}</h1>
+        <div style="font-size:12px;color:#333;margin-bottom:6px;">{{ selected.name }}</div>
+        <div style="font-size:11px;color:#444;display:flex;flex-wrap:wrap;gap:14px;">
+            {% if date_from or date_to %}<span><strong>Period:</strong> {{ date_from or '—' }} → {{ date_to or '—' }}</span>{% endif %}
+            <span style="margin-left:auto;"><strong>Generated:</strong> <span id="pdf-gen-ts">—</span></span>
+        </div>
+    </div>
+
+    {% for sec in report_data.sections %}
+    {% set sec_title = 'Most Active CDU' if sec.type == 'stats' else sec.title %}
+    <div style="margin-bottom:22px;page-break-inside:avoid;" {% if sec.id == 'cdu_activity' %}data-pdf-break="before"{% endif %}>
+        <div style="background:#eef0f7;padding:5px 10px;font-size:11px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;">{{ sec_title }}</div>
+
+        {# STATS - PDF only renders Most Active CDU; metrics duplicate Actions section #}
+        {% if sec.type == 'stats' and sec.row %}
+        {% set r = sec.row %}
+        {% set has_top = r.top_rule and (r.top_rule_count or 0) | int >= 2 %}
+        {% set cdu_name = (r.top_rule | replace(':', ': ') | replace(':  ', ': ')) if has_top else '' %}
+        <div style="padding:10px 12px;font-size:12px;min-height:30px;text-align:left;">
+            {%- if has_top -%}<strong style="color:#3d4d80;font-size:14px;">{{ r.top_rule_count }}</strong> <span style="color:#666;">actions</span> &nbsp;·&nbsp; <strong>{{ cdu_name }}</strong>{%- endif -%}
+        </div>
+
+        {# TABLE #}
+        {% elif sec.type == 'table' and sec.rows %}
+        {% set cols = sec.rows[0].keys() | list %}
+        {% set max_v = (sec.rows | map(attribute=cols[-1]) | map('int') | list | max) or 1 %}
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+            <thead><tr>
+                {% if cols | length > 3 %}<th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:2.5rem;">#</th>{% endif %}
+                {% for col in cols %}<th style="text-align:{% if loop.last and cols|length <= 3 %}right{% else %}left{% endif %};padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;">{{ col | replace('_',' ') | title }}</th>{% endfor %}
+                {% if cols | length <= 3 %}<th style="border-bottom:1px solid #aaa;width:35%;"></th>{% endif %}
+            </tr></thead>
+            <tbody>
+                {% for row in sec.rows %}
+                <tr style="page-break-inside:avoid;">
+                    {% if cols | length > 3 %}<td style="padding:4px 8px;border-bottom:1px solid #eee;color:#888;font-size:10px;">{{ loop.index }}</td>{% endif %}
+                    {% for col, val in row.items() %}
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:{% if loop.last and cols|length <= 3 %}right{% else %}left{% endif %};{% if col == 'description' %}max-width:380px;word-break:break-word;{% elif col == 'date' or col == 'modified_by' %}white-space:nowrap;{% endif %}{% if loop.last and cols|length <= 3 %}font-weight:600;{% endif %}">{{ pdf_cell(col, val) }}</td>
+                    {% endfor %}
+                    {% if cols | length <= 3 %}
+                    {% set pct = (row[cols[-1]] | int) * 100 // max_v %}
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;">
+                        <div style="height:6px;border-radius:3px;background:#eee;overflow:hidden;"><div style="height:100%;width:{{ pct }}%;background:#6477a8;"></div></div>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% elif sec.type == 'table' %}
+        <div style="padding:8px 10px;font-size:11px;color:#666;">No data for the selected scope.</div>
+
+        {# MITRE #}
+        {% elif sec.type == 'mitre' %}
+        {% if sec.rows %}
+        {% set mmax = (sec.rows | map(attribute='count') | map('int') | list | max) or 1 %}
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+            <thead><tr>
+                <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:5rem;">Technique</th>
+                <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;">Name</th>
+                <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:8rem;">Tactic</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:4rem;">CDUs</th>
+                <th style="border-bottom:1px solid #aaa;width:28%;"></th>
+            </tr></thead>
+            <tbody>
+                {% for row in sec.rows %}
+                <tr style="page-break-inside:avoid;">
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;"><code style="font-size:10px;background:#f4f4f4;padding:1px 4px;border-radius:2px;">{{ row.id }}</code></td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;">{{ row.name or '—' }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;color:#666;">{{ row.tactic | title if row.tactic else '—' }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">{{ row.count }}</td>
+                    {% set pct = (row.count | int) * 100 // mmax %}
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;"><div style="height:6px;border-radius:3px;background:#eee;overflow:hidden;"><div style="height:100%;width:{{ pct }}%;background:#6477a8;"></div></div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:8px 10px;font-size:11px;color:#666;">No MITRE data for the selected scope.</div>
+        {% endif %}
+
+        {# TIMELINE #}
+        {% elif sec.type == 'timeline' %}
+        {% if sec.rows %}
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+            <thead><tr>
+                <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;">Date</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:5rem;">Creations</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:6rem;">Modifications</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:6rem;">Eliminations</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:4rem;">Total</th>
+            </tr></thead>
+            <tbody>
+                {% for row in sec.rows %}
+                {% set tot = (row.creation|int) + (row.modification|int) + (row.elimination|int) %}
+                <tr style="page-break-inside:avoid;">
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;">{{ row.date }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.creation %}#bbb{% else %}#2c6e2c{% endif %};">{{ row.creation or 0 }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.modification %}#bbb{% else %}#8a6d00{% endif %};">{{ row.modification or 0 }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.elimination %}#bbb{% else %}#963838{% endif %};">{{ row.elimination or 0 }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;{% if not tot %}color:#bbb;{% endif %}">{{ tot }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:8px 10px;font-size:11px;color:#666;">No timeline data for the selected scope.</div>
+        {% endif %}
+
+        {% endif %}
+    </div>
+    {% endfor %}
+
+</div>
+{% endif %}
+
+{% elif run %}
+<div class="alert alert-warning">No data returned.</div>
+{% else %}
+<div class="text-secondary small mt-2">Configure filters and click <strong>Generate</strong>.</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const qr = document.getElementById('quickRange');
+    const df = document.getElementById('dateFrom');
+    const dt = document.getElementById('dateTo');
+    if (!qr) return;
+    qr.addEventListener('change', function () {
+        const v = this.value;
+        if (!v) { df.value = ''; dt.value = ''; return; }
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const fmt = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+        if (v === '7d')  { const f = new Date(now); f.setDate(now.getDate()-7);  df.value = fmt(f); dt.value = fmt(now); }
+        else if (v === '30d') { const f = new Date(now); f.setDate(now.getDate()-30); df.value = fmt(f); dt.value = fmt(now); }
+        else if (v === '90d') { const f = new Date(now); f.setDate(now.getDate()-90); df.value = fmt(f); dt.value = fmt(now); }
+        else if (v === 'week') {
+            const day = now.getDay();
+            const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+            df.value = fmt(mon); dt.value = fmt(sun);
+        }
+        else if (v === 'lastweek') {
+            const day = now.getDay();
+            const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1) - 7);
+            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+            df.value = fmt(mon); dt.value = fmt(sun);
+        }
+        else if (v === 'month') {
+            df.value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-01';
+            dt.value = fmt(new Date(now.getFullYear(), now.getMonth()+1, 0));
+        }
+    });
+})();
+
+{% if run and report_data and not report_data.get('error') %}
+const REPORT_SECTIONS = {{ report_data.sections | tojson }};
+
+const ACT_COLORS  = { creation:'rgba(35,134,54,.7)', modification:'rgba(210,153,34,.7)', elimination:'rgba(218,54,51,.7)' };
+const SEV_COLORS  = { critical:'rgba(218,54,51,.75)', high:'rgba(240,136,62,.75)', medium:'rgba(210,153,34,.75)', low:'rgba(48,129,247,.75)', informative:'rgba(110,118,129,.75)', 'not set':'rgba(48,54,61,.75)' };
+const PALETTE     = ['rgba(99,102,241,.75)','rgba(56,189,248,.75)','rgba(163,113,247,.75)','rgba(210,153,34,.75)','rgba(35,134,54,.75)','rgba(218,54,51,.75)','rgba(240,136,62,.75)','rgba(110,118,129,.75)'];
+const GRID = 'rgba(255,255,255,.05)';
+const TICK = '#8b949e';
+
+const humanize = s => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const TD_EXPAND = { fp:'False Positive', fn:'False Negative', tp:'True Positive', tn:'True Negative' };
+const humanizeTD = s => String(s || '').split('_').map(p => TD_EXPAND[p.toLowerCase()] || p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+
+REPORT_SECTIONS.forEach(sec => {
+    const ctx = document.getElementById('chart-' + sec.id);
+    if (!ctx || !sec.rows || !sec.rows.length) return;
+
+    if (sec.type === 'mitre') {
+        const labels = sec.rows.map(r => r.id);
+        const values = sec.rows.map(r => r.count);
+        new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets: [{ data: values, backgroundColor: 'rgba(99,102,241,.65)', borderRadius: 3, borderWidth: 0 }] },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks:{ color:TICK }, grid:{ color:GRID } },
+                    y: { ticks:{ color:TICK, font:{ size:11 } }, grid:{ display:false } }
+                }
+            }
+        });
+    }
+
+    if (sec.type === 'timeline') {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sec.rows.map(r => r.date),
+                datasets: [
+                    { label:'Creation',     data: sec.rows.map(r => r.creation),     backgroundColor:'rgba(35,134,54,.65)',  borderRadius:2 },
+                    { label:'Modification', data: sec.rows.map(r => r.modification), backgroundColor:'rgba(210,153,34,.65)', borderRadius:2 },
+                    { label:'Elimination',  data: sec.rows.map(r => r.elimination),  backgroundColor:'rgba(218,54,51,.65)',  borderRadius:2 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { stacked:true, ticks:{ color:TICK, maxTicksLimit:14 }, grid:{ color:GRID } },
+                    y: { stacked:true, ticks:{ color:TICK }, grid:{ color:GRID } }
+                },
+                plugins: { legend:{ labels:{ color:TICK } } }
+            }
+        });
+    }
+});
+
+async function exportReportPDF() {
+    const src = document.getElementById('report-pdf-container');
+    if (!src) return;
+
+    const tsEl = src.querySelector('#pdf-gen-ts');
+    if (tsEl) tsEl.textContent = new Date().toLocaleString();
+
+    const CANVAS_SCALE = 2;
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:-9999px;width:816px;height:10000px;border:none;';
+    document.body.appendChild(iframe);
+
+    const iDoc = iframe.contentDocument;
+    iDoc.open();
+    iDoc.write('<!DOCTYPE html><html><head><style>' +
+        '*{box-sizing:border-box;}' +
+        'body{margin:0;background:#fff;color:#000;font-family:"Segoe UI",Arial,sans-serif;}' +
+        '</style></head><body>' + src.outerHTML.replace('display:none', 'display:block') + '</body></html>');
+    iDoc.close();
+
+    await new Promise(r => setTimeout(r, 200));
+
+    try {
+        const iBody = iDoc.body;
+        const container = iBody.querySelector('#report-pdf-container');
+        const breakPoints = [];
+        const collect = (sel) => {
+            iBody.querySelectorAll(sel).forEach(el => {
+                const top = el.getBoundingClientRect().top + iframe.contentWindow.scrollY;
+                const bottom = top + el.offsetHeight;
+                breakPoints.push(bottom * CANVAS_SCALE);
+            });
+        };
+        collect('#report-pdf-container > div');
+        collect('#report-pdf-container tr');
+
+        const forcedBreaks = [];
+        iBody.querySelectorAll('[data-pdf-break="before"]').forEach(el => {
+            const top = el.getBoundingClientRect().top + iframe.contentWindow.scrollY;
+            forcedBreaks.push(top * CANVAS_SCALE);
+        });
+        forcedBreaks.sort((a,b) => a - b);
+
+        const sorted = [...new Set(breakPoints)].sort((a,b) => a - b);
+        const lastSectionBottom = sorted.length ? sorted[sorted.length - 1] : 0;
+
+        const canvas = await html2canvas(iBody, {
+            scale: CANVAS_SCALE, useCORS: true, backgroundColor: '#ffffff', windowWidth: 816
+        });
+
+        const effectiveHeight = lastSectionBottom > 0
+            ? Math.min(canvas.height, lastSectionBottom + 16 * CANVAS_SCALE)
+            : canvas.height;
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit:'pt', format:'letter', orientation:'portrait' });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const margin = 18;
+        const contentW = pageW - margin*2;
+        const contentH = pageH - margin*2;
+        const scale = contentW / canvas.width;
+        const maxSliceH = Math.floor(contentH / scale);
+
+        let srcY = 0, page = 1;
+        while (srcY < effectiveHeight) {
+            const remaining = effectiveHeight - srcY;
+            const upperBound = srcY + maxSliceH;
+            let sliceH;
+
+            const pendingForced = forcedBreaks.find(f => f > srcY + 4 && f <= upperBound);
+
+            if (pendingForced !== undefined) {
+                sliceH = pendingForced - srcY;
+            } else if (remaining <= maxSliceH) {
+                sliceH = remaining;
+            } else {
+                let chosen = 0;
+                for (const bp of sorted) {
+                    if (bp > srcY + 4 && bp <= upperBound) {
+                        chosen = bp - srcY;
+                    } else if (bp > upperBound) {
+                        break;
+                    }
+                }
+                sliceH = chosen > 0 ? chosen : maxSliceH;
+            }
+
+            const sliceC = document.createElement('canvas');
+            sliceC.width = canvas.width;
+            sliceC.height = sliceH;
+            sliceC.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+            if (page > 1) pdf.addPage();
+            pdf.addImage(sliceC.toDataURL('image/jpeg', 0.98), 'JPEG', margin, margin, contentW, sliceH * scale);
+            pdf.setFontSize(9); pdf.setTextColor(120);
+            pdf.text(String(page), pageW - margin, pageH - 16);
+            srcY += sliceH; page++;
+        }
+        pdf.save('Report_{{ report_title | replace(" ","_") }}_{{ date_from or "all" }}.pdf');
+    } finally {
+        document.body.removeChild(iframe);
+    }
+}
+{% endif %}
+</script>
+{% endblock %}

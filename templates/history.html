@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}History – Chronomancers Archives{% endblock %}
-{% block page_title %}{% if is_active_search and summary %}CDU Detail – {{ summary.rule_name }}{% else %}CDU Details{% endif %}{% endblock %}
+{% block page_title %}CDU Details{% endblock %}
 
 {% block head %}
 <style>
@@ -44,15 +44,30 @@
     box-shadow: 0 0 0 3px rgba(88,166,255,.25);
     color: #58a6ff;
 }
+.ca-tag {
+    display: inline-block;
+    padding: .25rem .75rem;
+    border-radius: .375rem;
+    text-align: center;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.2;
+    letter-spacing: .3px;
+    text-transform: capitalize;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 {% if is_active_search and summary %}
-<!-- Detail header: only PDF -->
-<div class="d-flex justify-content-end mb-4">
-    <button type="button" class="btn btn-sm btn-danger text-nowrap" onclick="exportToPDF()">
-        <i class="bi bi-file-pdf me-1"></i>PDF
+<!-- Detail header: CDU name + PDF -->
+<div class="d-flex align-items-center gap-3 mb-4">
+    <h4 class="mb-0 fw-semibold text-truncate" style="min-width:0;flex:1;" title="{{ summary.rule_name }}">{{ summary.rule_name }}</h4>
+    <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" onclick="exportToPDF()">
+        <i class="bi bi-file-pdf me-1"></i>Export PDF
     </button>
 </div>
 {% else %}
@@ -108,7 +123,7 @@
         const src = document.getElementById('report-container');
         const ruleName = "{{ summary.rule_name|default('Custom_Report') }}";
 
-        // Render inside an isolated iframe — html2canvas never touches the main document
+        const CANVAS_SCALE = 2;
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:fixed;top:0;left:-9999px;width:816px;height:10000px;border:none;';
         document.body.appendChild(iframe);
@@ -116,36 +131,74 @@
         const iDoc = iframe.contentDocument;
         iDoc.open();
         iDoc.write('<!DOCTYPE html><html><head><style>' +
-            '* { color: #000 !important; background: transparent !important; box-sizing: border-box; }' +
-            'body { background: #fff !important; margin: 0; font-family: "Segoe UI", sans-serif; }' +
-            '</style></head><body>' + src.innerHTML + '</body></html>');
+            '*{box-sizing:border-box;}' +
+            'body{background:#fff;color:#000;margin:0;font-family:"Segoe UI",Arial,sans-serif;}' +
+            '</style></head><body>' + src.outerHTML.replace('display:none','display:block') + '</body></html>');
         iDoc.close();
 
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 200));
 
         try {
-            const canvas = await html2canvas(iDoc.body, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                windowWidth: 816
+            const iBody = iDoc.body;
+
+            const breakPoints = [];
+            const keepBlocks = [];
+            iBody.querySelectorAll('#report-container > div').forEach(el => {
+                const top = el.getBoundingClientRect().top + iframe.contentWindow.scrollY;
+                breakPoints.push((top + el.offsetHeight) * CANVAS_SCALE);
+            });
+            iBody.querySelectorAll('[data-pdf-keep="true"]').forEach(el => {
+                const top = el.getBoundingClientRect().top + iframe.contentWindow.scrollY;
+                const bottom = top + el.offsetHeight;
+                keepBlocks.push({ top: top * CANVAS_SCALE, bottom: bottom * CANVAS_SCALE });
+                breakPoints.push(bottom * CANVAS_SCALE);
+            });
+            const sorted = [...new Set(breakPoints)].sort((a,b) => a - b);
+            const lastBottom = sorted.length ? sorted[sorted.length - 1] : 0;
+
+            const canvas = await html2canvas(iBody, {
+                scale: CANVAS_SCALE, useCORS: true, backgroundColor: '#ffffff', windowWidth: 816
             });
 
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' });
+            const effectiveHeight = lastBottom > 0
+                ? Math.min(canvas.height, lastBottom + 12 * CANVAS_SCALE)
+                : canvas.height;
 
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit:'pt', format:'letter', orientation:'portrait' });
             const pageW = pdf.internal.pageSize.getWidth();
             const pageH = pdf.internal.pageSize.getHeight();
-            const margin = 36;
-            const contentW = pageW - margin * 2;
-            const contentH = pageH - margin * 2;
+            const margin = 18;
+            const contentW = pageW - margin*2;
+            const contentH = pageH - margin*2;
             const scale = contentW / canvas.width;
+            const maxSliceH = Math.floor(contentH / scale);
 
-            let srcY = 0;
-            let page = 1;
+            let srcY = 0, page = 1;
+            while (srcY < effectiveHeight) {
+                const remaining = effectiveHeight - srcY;
+                const upperBound = srcY + maxSliceH;
+                let sliceH;
 
-            while (srcY < canvas.height) {
-                const sliceH = Math.min(Math.round(contentH / scale), canvas.height - srcY);
+                if (remaining <= maxSliceH) {
+                    sliceH = remaining;
+                } else {
+                    const blockingBlock = keepBlocks.find(b => b.top >= srcY && b.top < upperBound && b.bottom > upperBound);
+                    if (blockingBlock && blockingBlock.top > srcY + 4) {
+                        sliceH = blockingBlock.top - srcY;
+                    } else {
+                        let chosen = 0;
+                        for (const bp of sorted) {
+                            if (bp > srcY + 4 && bp <= upperBound) {
+                                chosen = bp - srcY;
+                            } else if (bp > upperBound) {
+                                break;
+                            }
+                        }
+                        sliceH = chosen > 0 ? chosen : maxSliceH;
+                    }
+                }
+
                 const sliceCanvas = document.createElement('canvas');
                 sliceCanvas.width = canvas.width;
                 sliceCanvas.height = sliceH;
@@ -153,10 +206,8 @@
 
                 if (page > 1) pdf.addPage();
                 pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.98), 'JPEG', margin, margin, contentW, sliceH * scale);
-
-                pdf.setFontSize(10);
-                pdf.setTextColor(100);
-                pdf.text(String(page), pageW - margin, pageH - 18);
+                pdf.setFontSize(9); pdf.setTextColor(120);
+                pdf.text(String(page), pageW - margin, pageH - 12);
 
                 srcY += sliceH;
                 page++;
@@ -170,55 +221,54 @@
 </script>
 
 <!-- Hidden PDF Report -->
-<div id="report-container" style="display:none;background:#fff;color:#000;padding:40px;font-family:'Segoe UI',sans-serif;">
-    <div style="border-bottom:3px solid #000;padding-bottom:20px;margin-bottom:30px;text-align:center;">
-        <h1 style="margin:0;font-size:28px;font-weight:bold;text-transform:uppercase;color:#000;">{{ summary.rule_name }}</h1>
+{% set sev_pdf = {'critical':'#963838','high':'#a8651d','medium':'#8a6d00','low':'#2a5d8f','informative':'#5a6168'} %}
+{% set act_pdf = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
+<div id="report-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Segoe UI',sans-serif;">
+    <div style="border-bottom:3px solid #3d4d80;padding-bottom:14px;margin-bottom:20px;text-align:center;">
+        <h1 style="margin:0;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3d4d80;white-space:nowrap;overflow:hidden;">{{ summary.rule_name }}</h1>
     </div>
-    <div style="margin-bottom:30px;font-size:12px;">
-        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">General Summary</div>
-        <div style="display:flex;flex-wrap:wrap;">
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creator:</span><strong>{{ summary.creator }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creation:</span><strong>{{ summary.first_created.strftime('%Y-%m-%d') }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod By:</span><strong>{{ summary.last_modifier }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod:</span><strong>{{ summary.last_modified.strftime('%Y-%m-%d') }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Status:</span><span style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold;">{{ summary.current_status }}</span></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Severity:</span>
+    <div style="margin-bottom:20px;font-size:12px;">
+        <div style="background:#eef0f7;padding:5px 10px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;font-size:11px;">General Summary</div>
+        <div style="display:flex;flex-wrap:wrap;margin-top:4px;">
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creator:</span><strong>{{ summary.creator }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Creation:</span><strong>{{ summary.first_created.strftime('%Y-%m-%d') }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod By:</span><strong>{{ summary.last_modifier }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Last Mod:</span><strong>{{ summary.last_modified.strftime('%Y-%m-%d') }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Status:</span><span style="background:{{ '#2c6e2c' if summary.current_status|lower == 'active' else '#963838' }};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.3px;">{{ summary.current_status|upper }}</span></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;"><span>Severity:</span>
                 {% if summary.current_severity %}
-                {% set sev = summary.current_severity|lower %}
-                {% set sev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(sev, '#6e7681') %}
-                <span style="background:{{ sev_color }};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold;">{{ summary.current_severity|title }}</span>
+                <span style="background:{{ sev_pdf.get(summary.current_severity|lower, '#5a6168') }};color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.3px;">{{ summary.current_severity|upper }}</span>
                 {% else %}
                 <strong>N/A</strong>
                 {% endif %}
             </div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Versions:</span><strong>{{ summary.total_events }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Company:</span><strong>{{ summary.company }}</strong></div>
-            <div style="width:50%;padding:6px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Versions:</span><strong style="color:#3d4d80;">{{ summary.total_events }}</strong></div>
+            <div style="width:50%;padding:5px 10px;box-sizing:border-box;display:flex;justify-content:space-between;"><span>Environment:</span><strong>{{ summary.environment }}</strong></div>
         </div>
     </div>
     {% if siem_info %}
-    <div style="margin-bottom:30px;font-size:12px;">
-        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">SIEM</div>
-        <div style="padding:8px 10px;font-size:11px;">{{ siem_info | replace('_', ' ') | title }}</div>
+    <div style="margin-bottom:20px;font-size:12px;">
+        <div style="background:#eef0f7;padding:5px 10px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;font-size:11px;">SIEM</div>
+        <div style="padding:6px 10px;font-size:11px;">{{ siem_info | replace('_', ' ') | title }}</div>
     </div>
     {% endif %}
     {% if mitre_info %}
-    <div style="margin-bottom:30px;font-size:12px;">
-        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">MITRE ATT&CK</div>
-        <div style="padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+    <div style="margin-bottom:20px;font-size:12px;">
+        <div style="background:#eef0f7;padding:5px 10px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;font-size:11px;">MITRE ATT&amp;CK</div>
+        <div style="padding:6px 10px;display:flex;flex-direction:column;gap:5px;">
             {% for m in mitre_info %}
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div data-pdf-keep="true" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 {% if m.subtechnique_id %}
-                <span style="background:#e0e0f0;border:1px solid #c0c0e0;border-radius:3px;padding:2px 8px;font-size:11px;">
-                    <strong>{{ m.technique_id }}</strong> {{ m.technique_name }} / <strong>{{ m.subtechnique_id }}</strong> {{ m.subtechnique_name }}
+                <span style="background:#eef0f7;border:1px solid #d8dceb;border-radius:3px;padding:2px 8px;font-size:11px;">
+                    <strong style="color:#3d4d80;">{{ m.technique_id }}</strong> {{ m.technique_name }} / <strong style="color:#3d4d80;">{{ m.subtechnique_id }}</strong> {{ m.subtechnique_name }}
                 </span>
                 {% else %}
-                <span style="background:#e0e0f0;border:1px solid #c0c0e0;border-radius:3px;padding:2px 8px;font-size:11px;">
-                    <strong>{{ m.technique_id }}</strong> {{ m.technique_name }}
+                <span style="background:#eef0f7;border:1px solid #d8dceb;border-radius:3px;padding:2px 8px;font-size:11px;">
+                    <strong style="color:#3d4d80;">{{ m.technique_id }}</strong> {{ m.technique_name }}
                 </span>
                 {% endif %}
                 {% if m.tactic %}
-                <span style="background:#d0d8f0;border-radius:3px;padding:1px 6px;font-size:10px;">{{ m.tactic.split(',')[0] | title }}</span>
+                <span style="background:#d8dceb;color:#3d4d80;border-radius:3px;padding:1px 6px;font-size:10px;">{{ m.tactic.split(',')[0] | title }}</span>
                 {% endif %}
             </div>
             {% endfor %}
@@ -226,45 +276,43 @@
     </div>
     {% endif %}
     {% if tags_info %}
-    <div style="margin-bottom:30px;font-size:12px;">
-        <div style="background:#eee;padding:6px 10px;font-weight:bold;color:#000;text-transform:uppercase;letter-spacing:.5px;">Tags</div>
-        <div style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;">
+    <div style="margin-bottom:20px;font-size:12px;">
+        <div style="background:#eef0f7;padding:5px 10px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;font-size:11px;">Tags</div>
+        <div style="padding:6px 10px;display:flex;flex-wrap:wrap;gap:6px;">
             {% for t in tags_info %}
-            <span style="background:#e8f0e0;border:1px solid #c0d0b0;border-radius:3px;padding:2px 8px;font-size:11px;">
-                <strong>{{ t.category | replace('_', ' ') | title }}:</strong> {{ t.value }}
+            <span style="background:#eef0f7;border:1px solid #d8dceb;border-radius:3px;padding:2px 8px;font-size:11px;">
+                <strong style="color:#3d4d80;">{{ t.category | replace('_', ' ') | title }}:</strong> {{ t.value }}
             </span>
             {% endfor %}
         </div>
     </div>
     {% endif %}
     <div>
-        <h3 style="margin:0 0 20px;font-size:16px;color:#000;border-bottom:2px solid #000;padding-bottom:5px;text-transform:uppercase;">Event Details</h3>
+        <div style="background:#eef0f7;padding:5px 10px;font-weight:700;color:#3d4d80;text-transform:uppercase;letter-spacing:.5px;border-left:3px solid #3d4d80;font-size:11px;margin-bottom:10px;">Event Details</div>
         {% for log in timeline|reverse %}
-        <div style="margin-bottom:15px;border:1px solid #ccc;page-break-inside:avoid;">
-            <div style="background:#f5f5f5;padding:6px 10px;border-bottom:1px solid #ccc;display:flex;justify-content:space-between;align-items:center;font-size:11px;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <strong>{{ log.created_at.strftime('%Y-%m-%d') }}</strong>
-                    <span>| Modified by: <strong>{{ log.modified_by or 'System' }}</strong></span>
-                    {% if log.ticket %}<span>| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
-                    <span>| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
+        <div data-pdf-keep="true" style="margin-bottom:12px;border:1px solid #d8dceb;border-radius:3px;page-break-inside:avoid;">
+            <div style="background:#eef0f7;padding:6px 10px;border-bottom:1px solid #d8dceb;display:flex;justify-content:space-between;align-items:center;font-size:11px;flex-wrap:wrap;gap:6px;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#333;">
+                    <strong style="color:#3d4d80;white-space:nowrap;">{{ log.created_at.strftime('%Y-%m-%d') }}</strong>
+                    <span style="white-space:nowrap;">| Modified by: <strong>{{ log.modified_by or 'System' }}</strong></span>
+                    {% if log.ticket %}<span style="white-space:nowrap;">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
+                    <span style="white-space:nowrap;">| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
                     {% if log.severity %}
-                    {% set lsev = log.severity|lower %}
-                    {% set lsev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(lsev, '#6e7681') %}
-                    <span style="background:{{ lsev_color }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.severity|title }}</span>
+                    <span style="background:{{ sev_pdf.get(log.severity|lower, '#5a6168') }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ log.severity|title }}</span>
                     {% endif %}
-                    <span style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:bold;text-transform:uppercase;">{{ log.action_type|title }}</span>
+                    <span style="background:{{ act_pdf.get(log.action_type, '#5a6168') }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ log.action_type|title }}</span>
                 </div>
             </div>
             <div style="padding:10px;display:flex;flex-direction:column;gap:10px;">
-                <div style="padding-bottom:10px;border-bottom:1px solid #eee;">
-                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">Detail</div>
-                    <div style="font-size:12px;line-height:1.3;">{{ log.description }}</div>
+                <div style="padding-bottom:8px;border-bottom:1px solid #eee;">
+                    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#3d4d80;margin-bottom:3px;font-weight:600;">Detail</div>
+                    <div style="font-size:12px;line-height:1.35;">{{ log.description }}</div>
                 </div>
-                <div style="background:#fdfdfd;padding:8px;border-radius:3px;border:1px solid #eee;">
-                    <div style="font-size:10px;text-transform:uppercase;margin-bottom:3px;">CDU</div>
-                    <pre style="margin:0;white-space:pre-wrap;font-family:'Courier New',monospace;font-size:8.5px;color:#000;line-height:1.2;">{{ log.rule_content }}</pre>
+                <div style="background:#fafbfd;padding:8px;border-radius:3px;border:1px solid #e0e0e0;">
+                    <div style="font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#3d4d80;margin-bottom:3px;font-weight:600;">CDU</div>
+                    <pre style="margin:0;white-space:pre-wrap;font-family:'Courier New',monospace;font-size:8.5px;color:#000;line-height:1.25;">{{ log.rule_content }}</pre>
                 </div>
             </div>
         </div>
@@ -295,16 +343,14 @@
                 <tr>
                     <th class="ca-sum-key">Status</th>
                     <td class="ca-sum-val">
-                        <span class="badge" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};color:#fff;padding:3px 9px;">
-                            {{ summary.current_status }}
-                        </span>
+                        <span class="ca-tag" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};">{{ summary.current_status }}</span>
                     </td>
                     <th class="ca-sum-key">Severity</th>
                     <td class="ca-sum-val">
                         {% if summary.current_severity %}
                         {% set sev = summary.current_severity|lower %}
                         {% set sev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(sev, '#6e7681') %}
-                        <span class="badge" style="background:{{ sev_color }};color:#fff;padding:3px 9px;">{{ summary.current_severity|title }}</span>
+                        <span class="ca-tag" style="background:{{ sev_color }};">{{ summary.current_severity|title }}</span>
                         {% else %}
                         <span class="text-secondary">N/A</span>
                         {% endif %}
@@ -464,10 +510,10 @@
                 {% if log.severity %}
                 {% set lsev = log.severity|lower %}
                 {% set lsev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(lsev, '#6e7681') %}
-                <span class="ms-2">| Severity: <span class="badge" style="background:{{ lsev_color }};color:#fff;padding:2px 8px;">{{ log.severity|title }}</span></span>
+                <span class="ms-2">| Severity: <span class="ca-tag" style="background:{{ lsev_color }};">{{ log.severity|title }}</span></span>
                 {% endif %}
             </span>
-            <span class="badge ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};color:#fff;">
+            <span class="ca-tag ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};">
                 {% if log.action_type == 'creation' %}Creation{% elif log.action_type == 'modification' %}Modification{% elif log.action_type == 'elimination' %}Elimination{% else %}{{ log.action_type }}{% endif %}
             </span>
         </div>
@@ -534,7 +580,7 @@
                             {% endif %}
                         </td>
                         <td class="text-center" style="white-space:nowrap;padding-right:1.25rem;">
-                            <a href="/history?rule_name={{ rule_meta.rule_name | urlencode }}"
+                            <a href="/history?cdu_name={{ rule_meta.rule_name | urlencode }}"
                                 class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
                                 <i class="bi bi-box-arrow-up-right me-1"></i>Detail
                             </a>

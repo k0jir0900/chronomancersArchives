@@ -4,6 +4,7 @@ import functools
 import hashlib
 import json
 import atexit
+import yaml
 from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify
 import mysql.connector
 from datetime import datetime, timedelta
@@ -32,6 +33,14 @@ app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.jinja_env.filters['split'] = lambda s, sep=',': s.split(sep)
+
+_TD_EXPAND = {'fp': 'False Positive', 'fn': 'False Negative', 'tp': 'True Positive', 'tn': 'True Negative'}
+def _humanize_td(val):
+    if not val or val == '—':
+        return val or '—'
+    return ' '.join(_TD_EXPAND.get(p.lower(), p.capitalize()) for p in str(val).split('_'))
+app.jinja_env.filters['humanize_td'] = _humanize_td
 
 UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
@@ -71,6 +80,152 @@ def load_mitre_config():
 def save_mitre_config(config):
     with open(MITRE_CONFIG_FILE, 'w') as f:
         json.dump(config, f)
+
+REPORTS_CONFIG_FILE = 'reports_config.yaml'
+
+def load_reports_config():
+    if not os.path.exists(REPORTS_CONFIG_FILE):
+        return []
+    try:
+        with open(REPORTS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get('reports', []) if data else []
+    except Exception as e:
+        print(f"Error loading reports config: {e}")
+        return []
+
+def build_report_data(config, company, date_from, date_to):
+    conn = get_db_connection()
+    if not conn:
+        return None
+    cursor = conn.cursor(dictionary=True)
+
+    where_parts = []
+    params = []
+    if company:
+        where_parts.append('company = %s')
+        params.append(company)
+    if date_from:
+        where_parts.append('created_at >= %s')
+        params.append(date_from + ' 00:00:00')
+    if date_to:
+        where_parts.append('created_at <= %s')
+        params.append(date_to + ' 23:59:59')
+
+    where = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
+    data  = {'sections': []}
+
+    def _fmt_row(row):
+        for k, v in row.items():
+            if hasattr(v, 'strftime'):
+                row[k] = v.strftime('%Y-%m-%d')
+        return row
+
+    try:
+        for sec in config.get('sections', []):
+            sec_type = sec.get('type', 'table')
+            result   = {'id': sec.get('id', ''), 'title': sec.get('title', ''), 'type': sec_type}
+
+            if sec_type in ('stats', 'table'):
+                sql = (sec.get('query') or '').strip()
+                if sql:
+                    n = sql.count('{where}')
+                    cursor.execute(sql.replace('{where}', where), params * n)
+                    if sec_type == 'stats':
+                        row = cursor.fetchone()
+                        result['row'] = _fmt_row(row) if row else {}
+                    else:
+                        result['rows'] = [_fmt_row(r) for r in cursor.fetchall()]
+                else:
+                    result['row' if sec_type == 'stats' else 'rows'] = {} if sec_type == 'stats' else []
+
+                if sec_type == 'table':
+                    if result['id'] == 'actions':
+                        existing = {r.get('action_type'): r.get('count', 0) for r in result['rows']}
+                        result['rows'] = [
+                            {'action_type': a, 'count': existing.get(a, 0)}
+                            for a in ('creation', 'modification', 'elimination')
+                        ]
+                        result['rows'].sort(key=lambda r: r['count'], reverse=True)
+                    elif result['id'] == 'tuning_driver':
+                        cursor.execute(
+                            "SELECT DISTINCT COALESCE(tuning_driver, 'unknown') AS tuning_driver "
+                            "FROM archives WHERE tuning_driver IS NOT NULL"
+                        )
+                        all_drivers = [r['tuning_driver'] for r in cursor.fetchall()]
+                        existing = {r.get('tuning_driver'): r.get('count', 0) for r in result['rows']}
+                        for d in existing:
+                            if d not in all_drivers:
+                                all_drivers.append(d)
+                        result['rows'] = [
+                            {'tuning_driver': d, 'count': existing.get(d, 0)}
+                            for d in all_drivers
+                        ]
+                        result['rows'].sort(key=lambda r: r['count'], reverse=True)
+
+            elif sec_type == 'mitre':
+                mitre_parts = list(where_parts) + ["mitre IS NOT NULL", "mitre != 'null'", "mitre != '[]'"]
+                mitre_where = 'WHERE ' + ' AND '.join(mitre_parts)
+                cursor.execute(f"SELECT mitre FROM archives {mitre_where}", params)
+                counts = {}
+                for row in cursor.fetchall():
+                    try:
+                        techs = json.loads(row['mitre']) if isinstance(row['mitre'], str) else (row['mitre'] or [])
+                        for t in techs:
+                            base = t.split(':')[0]
+                            counts[base] = counts.get(base, 0) + 1
+                    except Exception:
+                        pass
+                top = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:15]
+                if top:
+                    ids = [t[0] for t in top]
+                    cursor.execute(
+                        "SELECT technique_id, name, tactic FROM mitre_techniques WHERE technique_id IN (%s)"
+                        % ','.join(['%s'] * len(ids)), ids
+                    )
+                    nm = {r['technique_id']: r for r in cursor.fetchall()}
+                    result['rows'] = [
+                        {'id': t[0], 'count': t[1],
+                         'name': nm.get(t[0], {}).get('name', ''),
+                         'tactic': (nm.get(t[0], {}).get('tactic') or '').split(',')[0].strip()}
+                        for t in top
+                    ]
+                else:
+                    result['rows'] = []
+
+            elif sec_type == 'timeline':
+                cursor.execute(
+                    f"SELECT DATE(created_at) AS date, action_type, COUNT(*) AS count "
+                    f"FROM archives {where} GROUP BY DATE(created_at), action_type ORDER BY date",
+                    params
+                )
+                tl = {}
+                for row in cursor.fetchall():
+                    d = str(row['date'])
+                    tl.setdefault(d, {'creation': 0, 'modification': 0, 'elimination': 0})
+                    tl[d][row['action_type']] = row['count']
+                if date_from or date_to or tl:
+                    from datetime import date as _date, timedelta
+                    all_dates = sorted(tl.keys())
+                    start = _date.fromisoformat(date_from) if date_from else (_date.fromisoformat(all_dates[0]) if all_dates else None)
+                    end   = _date.fromisoformat(date_to)   if date_to   else (_date.fromisoformat(all_dates[-1]) if all_dates else None)
+                    if start and end:
+                        cur = start
+                        while cur <= end:
+                            tl.setdefault(cur.isoformat(), {'creation': 0, 'modification': 0, 'elimination': 0})
+                            cur += timedelta(days=1)
+                result['rows'] = [{'date': d, **v} for d, v in sorted(tl.items())]
+
+            data['sections'].append(result)
+
+    except Exception as e:
+        print(f"Report build error: {e}")
+        data['error'] = str(e)
+    finally:
+        cursor.close()
+        conn.close()
+
+    return data
 
 def sync_mitre_data():
     url = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
@@ -497,11 +652,11 @@ def history():
                 m = None
         row['has_mitre'] = bool(m)
 
-    selected_rule = request.args.get('rule_name')
+    selected_rule = request.args.get('cdu_name') or request.args.get('rule_name')
     selected_company = request.args.get('company')
     selected_environment = request.args.get('environment')
     selected_status = request.args.get('status')
-    
+
     timeline_data = []
     summary = {}
 
@@ -2319,6 +2474,81 @@ def audit():
     return render_template('audit.html', logs=logs, page=page, pages=pages, total=total,
                            f_action=f_action, f_username=f_username, f_ip=f_ip,
                            action_choices=action_choices)
+
+
+@app.route('/reports')
+@login_required
+def reports():
+    from datetime import date as _date, timedelta
+    configs  = load_reports_config()
+    report_id = request.args.get('id', '')
+    company   = request.args.get('company', '')
+    date_from = request.args.get('from', '')
+    date_to   = request.args.get('to', '')
+    run       = request.args.get('run', '')
+
+    selected = next((c for c in configs if c['id'] == report_id), None)
+
+    today = _date.today()
+    week_from = (today - timedelta(days=today.weekday())).isoformat()
+    week_to   = (today + timedelta(days=6 - today.weekday())).isoformat()
+    last_week_from = (today - timedelta(days=today.weekday() + 7)).isoformat()
+    last_week_to   = (today - timedelta(days=today.weekday() + 1)).isoformat()
+
+    if selected and 'from' not in request.args and 'to' not in request.args:
+        date_from = week_from
+        date_to   = week_to
+
+    preset = ''
+    if date_from == week_from and date_to == week_to:
+        preset = 'week'
+    elif date_from == last_week_from and date_to == last_week_to:
+        preset = 'lastweek'
+    else:
+        month_from = today.replace(day=1).isoformat()
+        next_month = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+        month_to = (next_month - timedelta(days=1)).isoformat()
+        if date_from == month_from and date_to == month_to:
+            preset = 'month'
+        else:
+            for days, key in ((7, '7d'), (30, '30d'), (90, '90d')):
+                f = (today - timedelta(days=days)).isoformat()
+                t = today.isoformat()
+                if date_from == f and date_to == t:
+                    preset = key
+                    break
+
+    title_map = {
+        'week':     'Weekly Report',
+        'lastweek': 'Last Week Report',
+        'month':    'Monthly Report',
+        '7d':       'Last 7 Days Report',
+        '30d':      'Last 30 Days Report',
+        '90d':      'Last 3 Months Report',
+    }
+    report_title = title_map.get(preset, 'CDU Report')
+
+    companies = []
+    conn = get_db_connection()
+    if conn:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT company FROM archives WHERE company IS NOT NULL ORDER BY company")
+        companies = [r[0] for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+
+    report_data = None
+    if selected and run:
+        report_data = build_report_data(selected, company, date_from, date_to)
+
+    return render_template('reports.html',
+        configs=configs, selected=selected, companies=companies,
+        company=company, date_from=date_from, date_to=date_to,
+        report_data=report_data, run=run, preset=preset,
+        report_title=report_title,
+    )
+
+
 
 
 if __name__ == '__main__':
