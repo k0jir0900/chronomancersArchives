@@ -74,9 +74,8 @@
 <!-- Search Inputs + Actions -->
 <div class="d-flex gap-2 align-items-center mb-4">
     <div id="searchRuleWrap" style="flex:5;min-width:0;position:relative;">
-        <div id="searchRuleDisplay" class="form-select ca-search-input" style="cursor:pointer;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">CDU Name</div>
+        <input type="text" id="searchRuleDisplay" class="form-control ca-search-input" placeholder="Type to filter CDUs..." autocomplete="off">
         <div id="searchRulePanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
-            <input type="text" id="searchRuleTyping" class="form-control ca-search-input" placeholder="Search CDU..." style="border-radius:.375rem .375rem 0 0;border:none;border-bottom:1px solid var(--border);">
             <div id="searchRuleOptions" style="max-height:220px;overflow-y:auto;">
                 <div class="ca-rule-opt" data-value="">All CDUs</div>
                 {% for rule in rules %}<div class="ca-rule-opt" data-value="{{ rule|lower }}" {% if selected_rule and rule|lower == selected_rule|lower %}data-preselected="1"{% endif %}>{{ rule }}</div>{% endfor %}
@@ -919,7 +918,6 @@
         const searchRuleWrap = document.getElementById('searchRuleWrap');
         const searchRuleDisplay = document.getElementById('searchRuleDisplay');
         const searchRulePanel = document.getElementById('searchRulePanel');
-        const searchRuleTyping = document.getElementById('searchRuleTyping');
         const searchRuleOptContainer = document.getElementById('searchRuleOptions');
         const searchCompanyInput = document.getElementById('searchCompany');
         const searchEnvInput = document.getElementById('searchEnv');
@@ -931,20 +929,24 @@
         // Pre-select if server sent a value
         (() => {
             const pre = searchRuleOptContainer.querySelector('.ca-rule-opt[data-preselected]');
-            if (pre) { selectedRuleValue = pre.dataset.value; searchRuleDisplay.textContent = pre.textContent; }
+            if (pre) { selectedRuleValue = pre.dataset.value; searchRuleDisplay.value = pre.textContent; }
         })();
 
-        // Toggle dropdown panel
-        searchRuleDisplay.addEventListener('click', () => {
-            const open = searchRulePanel.style.display !== 'none';
-            searchRulePanel.style.display = open ? 'none' : 'block';
-            if (!open) {
-                searchRuleTyping.value = '';
-                Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(o => {
-                    if (!o.dataset.cascadeHidden) o.style.display = '';
-                });
-                searchRuleTyping.focus();
-            }
+        const filterRuleOptions = () => {
+            const q = searchRuleDisplay.value.toLowerCase();
+            Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
+                if (opt.dataset.cascadeHidden) { opt.style.display = 'none'; return; }
+                if (!opt.dataset.value) { opt.style.display = ''; return; }
+                opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
+            });
+        };
+
+        searchRuleDisplay.addEventListener('focus', () => { searchRulePanel.style.display = 'block'; filterRuleOptions(); });
+        searchRuleDisplay.addEventListener('input', () => {
+            searchRulePanel.style.display = 'block';
+            selectedRuleValue = '';
+            filterRuleOptions();
+            applyFilters();
         });
 
         // Close on outside click
@@ -952,22 +954,12 @@
             if (!searchRuleWrap.contains(e.target)) searchRulePanel.style.display = 'none';
         });
 
-        // Text search within open dropdown
-        searchRuleTyping.addEventListener('input', () => {
-            const q = searchRuleTyping.value.toLowerCase();
-            Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
-                if (opt.dataset.cascadeHidden) { opt.style.display = 'none'; return; }
-                if (!opt.dataset.value) { opt.style.display = ''; return; }
-                opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
-            });
-        });
-
         // Select an option
         searchRuleOptContainer.addEventListener('click', e => {
             const opt = e.target.closest('.ca-rule-opt');
             if (!opt) return;
             selectedRuleValue = opt.dataset.value;
-            searchRuleDisplay.textContent = opt.dataset.value ? opt.textContent : 'CDU Name';
+            searchRuleDisplay.value = opt.dataset.value ? opt.textContent : '';
             searchRulePanel.style.display = 'none';
             applyFilters();
         });
@@ -983,7 +975,7 @@
                 (statusVal === "" || (row.dataset.status || "") === statusVal) &&
                 (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
             ).map(r => r.dataset.rule));
-            const q = searchRuleTyping.value.toLowerCase();
+            const q = searchRuleDisplay.value.toLowerCase();
             Array.from(searchRuleOptContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
                 if (!opt.dataset.value) return;
                 if (!validRules.has(opt.dataset.value)) {

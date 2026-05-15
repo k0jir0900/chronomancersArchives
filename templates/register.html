@@ -13,9 +13,8 @@
                 <div class="ca-form-field">
                     <label class="ca-label">CDU Name <span class="text-danger">*</span></label>
                     <div id="ruleNameWrap" style="position:relative;">
-                        <div id="ruleNameDisplay" class="form-select ca-input" style="cursor:pointer;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Select an option</div>
+                        <input type="text" id="ruleNameDisplay" class="form-control ca-input" placeholder="Type to search or select CDU..." autocomplete="off">
                         <div id="ruleNamePanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
-                            <input type="text" id="ruleNameTyping" class="form-control ca-input" placeholder="Search CDU..." style="border-radius:.375rem .375rem 0 0;border:none;border-bottom:1px solid var(--border);">
                             <div id="ruleNameOptions" style="max-height:220px;overflow-y:auto;">
                                 <div class="ca-rule-opt" data-value="__new__">— New CDU —</div>
                                 {% for rule in rules %}<div class="ca-rule-opt" data-value="{{ rule }}">{{ rule }}</div>{% endfor %}
@@ -319,38 +318,31 @@
     const wrap = document.getElementById('ruleNameWrap');
     const display = document.getElementById('ruleNameDisplay');
     const panel = document.getElementById('ruleNamePanel');
-    const typing = document.getElementById('ruleNameTyping');
     const optContainer = document.getElementById('ruleNameOptions');
     const textInput = document.getElementById('ruleName-input');
 
-    display.addEventListener('click', () => {
-        const open = panel.style.display !== 'none';
-        panel.style.display = open ? 'none' : 'block';
-        if (!open) {
-            typing.value = '';
-            Array.from(optContainer.querySelectorAll('.ca-rule-opt')).forEach(o => o.style.display = '');
-            typing.focus();
-        }
-    });
+    const filterOptions = q => {
+        const needle = (q || '').toLowerCase();
+        Array.from(optContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
+            opt.style.display = (!needle || opt.textContent.toLowerCase().includes(needle)) ? '' : 'none';
+        });
+    };
+
+    display.addEventListener('focus', () => { panel.style.display = 'block'; filterOptions(display.value); });
+    display.addEventListener('input', () => { panel.style.display = 'block'; filterOptions(display.value); });
 
     document.addEventListener('click', e => {
         if (!wrap.contains(e.target)) panel.style.display = 'none';
-    });
-
-    typing.addEventListener('input', () => {
-        const q = typing.value.toLowerCase();
-        Array.from(optContainer.querySelectorAll('.ca-rule-opt')).forEach(opt => {
-            opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
-        });
     });
 
     optContainer.addEventListener('click', e => {
         const opt = e.target.closest('.ca-rule-opt');
         if (!opt) return;
         const val = opt.dataset.value;
-        display.textContent = opt.textContent;
+        display.value = opt.textContent;
         panel.style.display = 'none';
         if (val === '__new__') {
+            display.value = '';
             textInput.style.display = '';
             textInput.required = true;
             textInput.value = '';

@@ -28,11 +28,8 @@
                     <label class="form-label fw-medium">Select CDU</label>
                     <input type="hidden" name="rule_name" id="diffRuleValue" value="{{ selected_rule or '' }}">
                     <div id="diffRuleWrap" style="position:relative;">
-                        <div id="diffRuleDisplay" class="form-select" style="cursor:pointer;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                            {{ selected_rule or 'Select a CDU to compare its versions...' }}
-                        </div>
+                        <input type="text" id="diffRuleDisplay" class="form-control" placeholder="Type to search a CDU to compare its versions..." autocomplete="off" value="{{ selected_rule or '' }}">
                         <div id="diffRulePanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
-                            <input type="text" id="diffRuleTyping" class="form-control ca-search-input" placeholder="Search CDU..." style="border-radius:.375rem .375rem 0 0;border:none;border-bottom:1px solid var(--border);">
                             <div id="diffRuleOptions" style="max-height:220px;overflow-y:auto;">
                                 <div class="ca-rule-opt" data-value="">Select a CDU to compare its versions...</div>
                                 {% for rule in all_rules %}<div class="ca-rule-opt" data-value="{{ rule }}">{{ rule }}</div>{% endfor %}
@@ -140,37 +137,29 @@
     const wrap    = document.getElementById('diffRuleWrap');
     const display = document.getElementById('diffRuleDisplay');
     const panel   = document.getElementById('diffRulePanel');
-    const typing  = document.getElementById('diffRuleTyping');
     const optCont = document.getElementById('diffRuleOptions');
     const hidden  = document.getElementById('diffRuleValue');
     const form    = hidden.closest('form');
 
-    display.addEventListener('click', () => {
-        const open = panel.style.display !== 'none';
-        panel.style.display = open ? 'none' : 'block';
-        if (!open) {
-            typing.value = '';
-            Array.from(optCont.querySelectorAll('.ca-rule-opt')).forEach(o => o.style.display = '');
-            typing.focus();
-        }
-    });
-
-    document.addEventListener('click', e => {
-        if (!wrap.contains(e.target)) panel.style.display = 'none';
-    });
-
-    typing.addEventListener('input', () => {
-        const q = typing.value.toLowerCase();
+    const filterOpts = () => {
+        const q = display.value.toLowerCase();
         Array.from(optCont.querySelectorAll('.ca-rule-opt')).forEach(opt => {
             opt.style.display = (!q || opt.textContent.toLowerCase().includes(q)) ? '' : 'none';
         });
+    };
+
+    display.addEventListener('focus', () => { panel.style.display = 'block'; filterOpts(); });
+    display.addEventListener('input', () => { panel.style.display = 'block'; filterOpts(); });
+
+    document.addEventListener('click', e => {
+        if (!wrap.contains(e.target)) panel.style.display = 'none';
     });
 
     optCont.addEventListener('click', e => {
         const opt = e.target.closest('.ca-rule-opt');
         if (!opt) return;
         hidden.value  = opt.dataset.value;
-        display.textContent = opt.dataset.value || 'Select a CDU to compare its versions...';
+        display.value = opt.dataset.value || '';
         panel.style.display = 'none';
         if (opt.dataset.value) form.submit();
     });
