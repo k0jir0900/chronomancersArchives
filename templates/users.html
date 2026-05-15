@@ -27,15 +27,16 @@
                         <input type="text" class="form-control" name="full_name">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Password <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" name="password" required>
+                        <label class="form-label">Password <span class="text-danger" id="addUserPasswordReq">*</span></label>
+                        <input type="password" class="form-control" name="password" id="addUserPassword" required>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
-                        <select class="form-select" name="role" required>
+                        <select class="form-select" name="role" id="addUserRole" required>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                             <option value="service">Service</option>
+                            <option value="third_party">Third Party</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -92,6 +93,7 @@
                                     <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
                                     <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
                                     <option value="service" {% if user.role == 'service' %}selected{% endif %}>Service</option>
+                                    <option value="third_party" {% if user.role == 'third_party' %}selected{% endif %}>Third Party</option>
                                 </select>
                             </form>
                         </td>
@@ -132,19 +134,31 @@
                                 </button>
                                 {% endif %}
 
+                                {% if user.role == 'third_party' %}
+                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:4.5rem;opacity:.2;">
+                                    <i class="bi bi-key me-1"></i>Reset
+                                </button>
+                                {% else %}
                                 <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm" style="width:4.5rem;"
                                     onclick="togglePasswordReset({{ user.id }})">
                                     <i class="bi bi-key me-1"></i>Reset
                                 </button>
+                                {% endif %}
 
+                                {% if user.role == 'third_party' %}
+                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:6.5rem;opacity:.2;">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Gen Key
+                                </button>
+                                {% else %}
                                 <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('{{ 'Regenerate' if user.key_value else 'Generate' }} API key for {{ user.username }}?');">
                                     <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="width:6.5rem;">
                                         <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regen Key' if user.key_value else 'Gen Key' }}
                                     </button>
                                 </form>
+                                {% endif %}
 
-                                {% if user.key_value %}
+                                {% if user.key_value and user.role != 'third_party' %}
                                 <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete API key for {{ user.username }}?');">
                                     <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger" style="width:5.5rem;">
@@ -200,5 +214,20 @@
         const el = document.getElementById('reset-password-' + userId);
         el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
+    (() => {
+        const roleSel = document.getElementById('addUserRole');
+        const pwd = document.getElementById('addUserPassword');
+        const req = document.getElementById('addUserPasswordReq');
+        if (!roleSel || !pwd) return;
+        const sync = () => {
+            const isTp = roleSel.value === 'third_party';
+            pwd.required = !isTp;
+            pwd.disabled = isTp;
+            if (isTp) pwd.value = '';
+            req.style.display = isTp ? 'none' : '';
+        };
+        roleSel.addEventListener('change', sync);
+        sync();
+    })();
 </script>
 {% endblock %}

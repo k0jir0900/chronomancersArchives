@@ -28,7 +28,8 @@
       "Bash(echo \"exit=$?\")",
       "Bash(Start-Sleep -Seconds 15)",
       "WebFetch(domain:api.cdnjs.com)",
-      "PowerShell(head *)"
+      "PowerShell(head *)",
+      "Bash(dir D:GitHubchronomancersArchives *)"
     ]
   }
 }

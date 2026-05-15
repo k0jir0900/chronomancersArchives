@@ -970,6 +970,11 @@ def login():
                                extra_params={'reason': 'service_account', 'username': username})
                 flash('Service accounts cannot log in via web.', 'error')
                 return render_template('login.html')
+            if user.get('role') == 'third_party':
+                _log_api_audit(user['id'], None, None, 'login_failed',
+                               extra_params={'reason': 'third_party_account', 'username': username})
+                flash('Third-party accounts cannot log in.', 'error')
+                return render_template('login.html')
             session.clear()
             session['user_id'] = user['id']
             session['username'] = user['username']
@@ -993,7 +998,8 @@ def logout():
 def register():
     if request.method == 'POST':
         rule_name = request.form.get('rule_name')
-        company = request.form.get('company')
+        company = 'CMPC'
+        third_party_user = (request.form.get('third_party_user') or '').strip() or None
         siem = request.form.get('siem') or None
         environment = request.form.get('environment')
         action_type = request.form.get('action_type')
@@ -1006,7 +1012,7 @@ def register():
         description = request.form.get('description')
         rule_content = request.form.get('rule_content')
 
-        if not rule_name or not company or not environment or not action_type or not severity or not description or not rule_content:
+        if not rule_name or not environment or not action_type or not severity or not description or not rule_content:
             flash('All mandatory fields must be filled.', 'error')
             return redirect(url_for('register'))
 
@@ -1020,6 +1026,15 @@ def register():
                 modifier_name = user_info['full_name'] if user_info and user_info.get('full_name') else session.get('username')
             except:
                 modifier_name = session.get('username')
+
+            if third_party_user:
+                try:
+                    cursor.execute("SELECT username, full_name FROM users WHERE username = %s", (third_party_user,))
+                    tp = cursor.fetchone()
+                    if tp:
+                        modifier_name = tp['full_name'] or tp['username']
+                except:
+                    pass
 
             mitre_raw = request.form.get('mitre_json', '').strip()
             mitre_data = None
@@ -1078,13 +1093,20 @@ def register():
 
     conn = get_db_connection()
     rules = []
+    users_list = []
     if conn:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
         rules = [r['rule_name'] for r in cursor.fetchall()]
+        cursor.execute(
+            "SELECT username, COALESCE(NULLIF(full_name,''), username) AS display_name "
+            "FROM users WHERE id != %s AND LOWER(role) = 'third_party' ORDER BY display_name",
+            (session['user_id'],)
+        )
+        users_list = cursor.fetchall()
         cursor.close()
         conn.close()
-    return render_template('register.html', rules=rules)
+    return render_template('register.html', rules=rules, users=users_list)
 
 
 TACTIC_ORDER = [
@@ -1568,17 +1590,24 @@ def add_user():
     full_name = request.form.get('full_name')
     password = request.form.get('password')
     role = request.form.get('role')
-    
-    if not username or not password or not role:
-        flash('Username, password and role are required.', 'error')
+
+    if not username or not role:
+        flash('Username and role are required.', 'error')
         return redirect(url_for('users'))
-        
+
+    if role != 'third_party' and not password:
+        flash('Password is required for this role.', 'error')
+        return redirect(url_for('users'))
+
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
         try:
-            hashed_password = generate_password_hash(password)
-            cursor.execute("INSERT INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)", 
+            if role == 'third_party':
+                hashed_password = generate_password_hash(secrets.token_hex(32))
+            else:
+                hashed_password = generate_password_hash(password)
+            cursor.execute("INSERT INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
                         (username, full_name, hashed_password, role))
             conn.commit()
             flash('User created successfully.', 'success')
@@ -1667,6 +1696,13 @@ def admin_regenerate_api_key(user_id):
         flash('Database connection failed.', 'error')
         return redirect(url_for('users'))
     cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+    target = cursor.fetchone()
+    if target and target.get('role') == 'third_party':
+        cursor.close()
+        conn.close()
+        flash('Third-party accounts cannot have API keys.', 'error')
+        return redirect(url_for('users'))
     try:
         cursor.execute(
             "INSERT INTO api_keys (user_id, key_value, key_prefix) VALUES (%s, %s, %s) "
