@@ -85,6 +85,11 @@ body {
     box-shadow: 0 4px 12px var(--accent-glow);
 }
 .sidebar-nav .nav-link i { font-size: 1.1rem; }
+.sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: .5rem .25rem;
+}
 
 /* ---- Topbar ---- */
 .topbar {

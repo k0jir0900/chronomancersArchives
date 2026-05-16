@@ -1109,6 +1109,12 @@ def register():
     return render_template('register.html', rules=rules, users=users_list)
 
 
+@app.route('/severity-calc')
+@login_required
+def severity_calc():
+    return render_template('severity_calc.html')
+
+
 TACTIC_ORDER = [
     'reconnaissance', 'resource-development', 'initial-access', 'execution',
     'persistence', 'privilege-escalation', 'defense-impairment', 'stealth',

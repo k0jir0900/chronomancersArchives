@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}Severity Calculator – Chronomancers Archives{% endblock %}
+{% block page_title %}CDU Severity Calculator{% endblock %}
+
+{% block content %}
+<div class="ca-form-page">
+    <div class="ca-form-card">
+        <div class="ca-form-body">
+
+            <div class="cvss-row">
+
+                <div class="cvss-result-block">
+                    <div class="cvss-result-label">Proposed Severity</div>
+                    <div class="cvss-result-score" id="cv-score">0.0</div>
+                    <div class="cvss-result-sev" id="cv-sev">Informational</div>
+                </div>
+
+                <table class="cvss-table">
+                    <thead>
+                        <tr>
+                            <th>Variable</th>
+                            <th>Description</th>
+                            <th>Options</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Probability</td>
+                            <td>How often this kind of attack happens.</td>
+                            <td>
+                                <div class="cvss-btn-group" data-metric="AL">
+                                    <button type="button" class="cvss-btn" data-value="R">Rare</button>
+                                    <button type="button" class="cvss-btn" data-value="P">Possible</button>
+                                    <button type="button" class="cvss-btn" data-value="L">Likely</button>
+                                    <button type="button" class="cvss-btn" data-value="V">Very Likely</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Criticality</td>
+                            <td>How important the affected system is.</td>
+                            <td>
+                                <div class="cvss-btn-group" data-metric="AC">
+                                    <button type="button" class="cvss-btn" data-value="L">Low</button>
+                                    <button type="button" class="cvss-btn" data-value="M">Medium</button>
+                                    <button type="button" class="cvss-btn" data-value="H">High</button>
+                                    <button type="button" class="cvss-btn" data-value="C">Critical</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.ca-form-page { display: block; }
+.ca-form-card {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    overflow: hidden;
+}
+.ca-form-body { padding: 1.25rem 1.5rem 1.5rem; }
+
+.cvss-row {
+    display: flex;
+    align-items: stretch;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.cvss-result-block {
+    flex: 0 0 220px;
+    background: rgba(99, 102, 241, .06);
+    border: 1px solid var(--border);
+    border-radius: .625rem;
+    padding: 1rem 1.25rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.cvss-result-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--text-muted);
+    margin-bottom: .3rem;
+}
+.cvss-result-score {
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.cvss-result-sev {
+    margin-top: .15rem;
+    font-size: .9rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.sev-info     { color: #94a3b8; }
+.sev-low      { color: #22c55e; }
+.sev-medium   { color: #f59e0b; }
+.sev-high     { color: #f97316; }
+.sev-critical { color: #ef4444; }
+
+.cvss-table {
+    flex: 1;
+    min-width: 320px;
+    border-collapse: collapse;
+    font-size: .85rem;
+    background: rgba(255,255,255,.02);
+    border: 1px solid var(--border);
+    border-radius: .625rem;
+    overflow: hidden;
+    align-self: stretch;
+}
+.cvss-table th,
+.cvss-table td {
+    text-align: left;
+    padding: .7rem .85rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+.cvss-table th {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    font-weight: 600;
+    background: rgba(255,255,255,.03);
+}
+.cvss-table tbody tr:last-child td { border-bottom: none; }
+.cvss-table td:first-child {
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
+    width: 1%;
+}
+.cvss-table td:nth-child(2) {
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.cvss-table td:nth-child(3) { width: 40%; }
+
+.cvss-btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+}
+.cvss-btn {
+    flex: 1;
+    min-width: 70px;
+    padding: .35rem .55rem;
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: .35rem;
+    font-size: .78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.cvss-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+.cvss-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px var(--accent-glow);
+}
+</style>
+
+<script>
+(() => {
+    const W = {
+        AL: { R: 0.20, P: 0.50, L: 0.80, V: 1.00 },
+        AC: { L: 0.25, M: 0.55, H: 0.80, C: 1.00 }
+    };
+
+    const defaults = { AL: 'P', AC: 'M' };
+    const state = { ...defaults };
+
+    const scoreEl = document.getElementById('cv-score');
+    const sevEl   = document.getElementById('cv-sev');
+
+    function classify(score) {
+        if (score < 2.0) return { label: 'Informational', cls: 'info' };
+        if (score < 4.0) return { label: 'Low',           cls: 'low' };
+        if (score < 7.0) return { label: 'Medium',        cls: 'medium' };
+        if (score < 9.0) return { label: 'High',          cls: 'high' };
+        return                  { label: 'Critical',      cls: 'critical' };
+    }
+
+    function compute() {
+        const prob = W.AL[state.AL];
+        const imp  = W.AC[state.AC];
+        const score = Math.round(prob * imp * 100) / 10;
+        const c = classify(score);
+
+        scoreEl.textContent = score.toFixed(1);
+        scoreEl.className = 'cvss-result-score sev-' + c.cls;
+        sevEl.textContent = c.label;
+        sevEl.className = 'cvss-result-sev sev-' + c.cls;
+    }
+
+    function setActive(metric, value) {
+        state[metric] = value;
+        document.querySelectorAll(`.cvss-btn-group[data-metric="${metric}"] .cvss-btn`).forEach(b => {
+            b.classList.toggle('active', b.dataset.value === value);
+        });
+        compute();
+    }
+
+    document.querySelectorAll('.cvss-btn-group').forEach(group => {
+        const metric = group.dataset.metric;
+        group.addEventListener('click', e => {
+            const btn = e.target.closest('.cvss-btn');
+            if (!btn) return;
+            setActive(metric, btn.dataset.value);
+        });
+    });
+
+    Object.keys(defaults).forEach(m => setActive(m, defaults[m]));
+})();
+</script>
+{% endblock %}

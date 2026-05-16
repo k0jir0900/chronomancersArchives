@@ -22,15 +22,27 @@
             <a href="/home" class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">
                 <i class="bi bi-house-fill"></i><span>Home</span>
             </a>
+
+            <div class="sidebar-divider"></div>
+
             <a href="/register" class="nav-link {% if request.endpoint == 'register' %}active{% endif %}">
                 <i class="bi bi-pencil-square"></i><span>CDU Registration</span>
             </a>
             <a href="/history" class="nav-link {% if request.endpoint in ['history', 'diff'] %}active{% endif %}">
                 <i class="bi bi-clock-history"></i><span>CDU Details</span>
             </a>
+            <a href="/severity-calc" class="nav-link {% if request.endpoint == 'severity_calc' %}active{% endif %}">
+                <i class="bi bi-calculator"></i><span>Severity Calculator</span>
+            </a>
+
+            <div class="sidebar-divider"></div>
+
             <a href="/mitre-coverage" class="nav-link {% if request.endpoint == 'mitre_coverage' %}active{% endif %}">
                 <i class="bi bi-diagram-3"></i><span>MITRE Coverage</span>
             </a>
+
+            <div class="sidebar-divider"></div>
+
             <a href="/reports" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
                 <i class="bi bi-file-bar-graph"></i><span>Reports</span>
             </a>

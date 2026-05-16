@@ -51,7 +51,7 @@
 .rp-stat-value { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
 .rp-stat-label { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; text-transform: capitalize; }
 .rp-table { font-size: .875rem; }
-.rp-table th { font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.rp-table th { font-size: .68rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .5rem !important; line-height: 1.2; }
 .rp-badge { display:inline-block; padding:2px 8px; border-radius:3px; font-size:.75rem; font-weight:600; }
 .sev-critical    { background:#da3633;color:#fff; }
 .sev-high        { background:#f0883e;color:#fff; }
@@ -70,8 +70,8 @@
 }
 .rp-grid .rp-section { margin-bottom: 0; width: 100%; display: block; }
 .rp-table-compact td, .rp-table-compact th { padding-top: 3px !important; padding-bottom: 3px !important; line-height: 1.35; }
-.rp-selector-table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .65rem .85rem; }
-.rp-selector-table td { padding: .9rem .85rem; border-bottom: 1px solid var(--border); }
+.rp-selector-table th { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .85rem !important; line-height: 1.2; }
+.rp-selector-table td { padding: .55rem .85rem !important; border-bottom: 1px solid var(--border); }
 .rp-selector-table tbody tr:last-child td { border-bottom: 0; }
 .rp-selector-table tbody tr:hover { background: rgba(99,102,241,.05); }
 .rp-filterbar { background: var(--bg-card); border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .75rem; }
@@ -154,13 +154,13 @@
 
 <div id="report-content">
     <!-- Report header -->
-    <div class="d-flex align-items-center gap-3 mb-3">
-        <div class="rp-card-icon" style="margin-bottom:0;flex-shrink:0;">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="rp-card-icon" style="width:32px;height:32px;font-size:1rem;margin-bottom:0;flex-shrink:0;">
             <i class="bi {{ selected.icon or 'bi-file-bar-graph' }}"></i>
         </div>
         <div>
-            <h4 class="mb-0 fw-semibold">{{ report_title }}</h4>
-            <span class="text-secondary small">
+            <h6 class="mb-0 fw-semibold" style="font-size:1rem;line-height:1.1;">{{ report_title }}</h6>
+            <span class="text-secondary" style="font-size:.72rem;">
                 {{ selected.name }}
                 {% if date_from %}&nbsp;·&nbsp;{{ date_from }}{% endif %}
                 {% if date_to %} – {{ date_to }}{% endif %}
