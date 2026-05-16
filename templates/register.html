@@ -438,13 +438,13 @@ async function loadRuleData(ruleName) {
     try {
         const resp = await fetch(`/api/rule/mitre?rule_name=${encodeURIComponent(ruleName)}`);
         const existing = await resp.json();
-        if (existing && existing.length) await loadExistingMitre(existing);
-    } catch (e) {}
+        if (existing && existing.length && window.loadExistingMitre) await window.loadExistingMitre(existing);
+    } catch (e) { console.error('mitre load failed', e); }
     try {
         const resp = await fetch(`/api/rule/tags?rule_name=${encodeURIComponent(ruleName)}`);
         const existing = await resp.json();
-        if (existing && existing.length) loadExistingTags(existing);
-    } catch (e) {}
+        if (existing && existing.length && window.loadExistingTags) window.loadExistingTags(existing);
+    } catch (e) { console.error('tags load failed', e); }
 }
 
 function setSelectByName(name, value) {
@@ -599,6 +599,8 @@ function setSelectByName(name, value) {
         if (ruleName) loadRuleData(ruleName);
     });
 
+    window.loadExistingMitre = loadExistingMitre;
+
     loadTechniques();
 
     // ---- Tags ----
@@ -717,6 +719,8 @@ function setSelectByName(name, value) {
         });
         renderTagChips();
     }
+
+    window.loadExistingTags = loadExistingTags;
 
     loadCategories();
 })();

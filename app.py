@@ -524,7 +524,7 @@ def home():
         'preset': delta if delta in (7, 15, 30, 90) else None
     }
     
-    cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+    cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives")
     unique_rules_count = cursor.fetchone()['unique_total']
 
     cursor.execute("SELECT COUNT(*) as total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))

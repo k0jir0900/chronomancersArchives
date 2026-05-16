@@ -43,6 +43,23 @@ reports:
       {where}
       GROUP BY tuning_driver
       ORDER BY count DESC
+  - id: user_activity
+    title: User Activity
+    type: table
+    query: |
+      SELECT COALESCE(u.full_name, sub.modified_by) AS user,
+             COUNT(*) AS count
+      FROM (
+          SELECT modified_by
+          FROM archives
+          {where}
+      ) sub
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(sub.modified_by)
+      WHERE sub.modified_by IS NOT NULL
+        AND sub.modified_by <> ''
+        AND (u.role IS NULL OR LOWER(u.role) <> 'service')
+      GROUP BY user
+      ORDER BY count DESC
   - id: timeline
     title: Activity Timeline
     type: timeline
