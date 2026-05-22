@@ -428,6 +428,33 @@
             {%- if has_top -%}<strong style="color:#3d4d80;font-size:14px;">{{ r.top_rule_count }}</strong> <span style="color:#666;">actions</span> &nbsp;·&nbsp; <strong>{{ cdu_name }}</strong>{%- endif -%}
         </div>
 
+        {# USER ACTIVITY #}
+        {% elif sec.id == 'user_activity' %}
+        {% if sec.rows %}
+        {% set ua_max = (sec.rows | map(attribute='count') | map('int') | list | max) or 1 %}
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px;">
+            <thead><tr>
+                <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;">User</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:5rem;">Count</th>
+                <th style="border-bottom:1px solid #aaa;width:35%;"></th>
+            </tr></thead>
+            <tbody>
+                {% for row in sec.rows %}
+                <tr style="page-break-inside:avoid;">
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;">{{ row.user or '—' }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">{{ row.count }}</td>
+                    {% set ua_pct = (row.count | int) * 100 // ua_max %}
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;">
+                        <div style="height:6px;border-radius:3px;background:#eee;overflow:hidden;"><div style="height:100%;width:{{ ua_pct }}%;background:#6477a8;"></div></div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:8px 10px;font-size:11px;color:#666;">No user activity for the selected scope.</div>
+        {% endif %}
+
         {# TABLE #}
         {% elif sec.type == 'table' and sec.rows %}
         {% set cols = sec.rows[0].keys() | list %}

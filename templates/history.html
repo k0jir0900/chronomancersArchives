@@ -82,10 +82,6 @@
             </div>
         </div>
     </div>
-    <select id="searchCompany" class="form-select ca-search-input" style="flex:1;min-width:0;">
-        <option value="" selected hidden>Company</option>
-        {% for company in companies %}<option value="{{ company|lower }}" {% if selected_company and company|lower == selected_company|lower %}selected{% endif %}>{{ company }}</option>{% endfor %}
-    </select>
     <select id="searchEnv" class="form-select ca-search-input" style="flex:1;min-width:0;">
         <option value="" selected hidden>Environment</option>
         <option value="it">IT</option>
@@ -919,7 +915,6 @@
         const searchRuleDisplay = document.getElementById('searchRuleDisplay');
         const searchRulePanel = document.getElementById('searchRulePanel');
         const searchRuleOptContainer = document.getElementById('searchRuleOptions');
-        const searchCompanyInput = document.getElementById('searchCompany');
         const searchEnvInput = document.getElementById('searchEnv');
         const searchStatusInput = document.getElementById('searchStatus');
         const searchMitreInput = document.getElementById('searchMitre');
@@ -965,12 +960,10 @@
         });
 
         function updateRuleOptions() {
-            const compVal = searchCompanyInput.value.toLowerCase();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
             const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
             const validRules = new Set(allRows.filter(row =>
-                (compVal === "" || row.dataset.company === compVal) &&
                 (envVal === "" || row.dataset.env === envVal) &&
                 (statusVal === "" || (row.dataset.status || "") === statusVal) &&
                 (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
@@ -995,13 +988,11 @@
         function applyFilters() {
             updateRuleOptions();
             const ruleVal = selectedRuleValue;
-            const compVal = searchCompanyInput.value.toLowerCase();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
             const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
             filteredRows = allRows.filter(row =>
                 (ruleVal === "" || row.dataset.rule === ruleVal) &&
-                (compVal === "" || row.dataset.company === compVal) &&
                 (envVal === "" || row.dataset.env === envVal) &&
                 (statusVal === "" || (row.dataset.status || "") === statusVal) &&
                 (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
@@ -1053,7 +1044,7 @@
             }
         }
 
-        [searchCompanyInput, searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
+        [searchEnvInput, searchStatusInput, searchMitreInput].forEach(inp => {
             if (inp) inp.addEventListener('change', applyFilters);
         });
         applyFilters();
