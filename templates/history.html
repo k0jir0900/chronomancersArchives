@@ -988,11 +988,13 @@
         function applyFilters() {
             updateRuleOptions();
             const ruleVal = selectedRuleValue;
+            const ruleQuery = ruleVal ? '' : searchRuleDisplay.value.toLowerCase().trim();
             const envVal = searchEnvInput.value.toLowerCase();
             const statusVal = searchStatusInput ? searchStatusInput.value.toLowerCase() : '';
             const mitreVal = searchMitreInput ? searchMitreInput.value.toLowerCase().trim() : '';
             filteredRows = allRows.filter(row =>
-                (ruleVal === "" || row.dataset.rule === ruleVal) &&
+                (ruleVal !== "" ? row.dataset.rule === ruleVal
+                    : (ruleQuery === "" || row.dataset.rule.includes(ruleQuery))) &&
                 (envVal === "" || row.dataset.env === envVal) &&
                 (statusVal === "" || (row.dataset.status || "") === statusVal) &&
                 (mitreVal === "" || (row.dataset.mitre || "") === mitreVal)
