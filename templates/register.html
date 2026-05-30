@@ -147,9 +147,12 @@
                 <div class="ca-form-field">
                     <label class="ca-label">MITRE ATT&CK <span class="ca-hint">— Optional</span></label>
                     <div class="mitre-add-row">
-                        <select id="mitre-technique" class="form-select ca-input mitre-select">
-                            <option value="">Loading techniques...</option>
-                        </select>
+                        <div id="mitre-technique-wrap" class="mitre-select" style="position:relative;">
+                            <input type="text" id="mitre-technique-display" class="form-control ca-input" placeholder="Loading techniques..." autocomplete="off" disabled>
+                            <div id="mitre-technique-panel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1050;background:var(--bg-body);border:1px solid var(--border);border-radius:.375rem;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,.3);">
+                                <div id="mitre-technique-options" style="max-height:220px;overflow-y:auto;"></div>
+                            </div>
+                        </div>
                         <select id="mitre-subtechnique" class="form-select ca-input mitre-select" disabled>
                             <option value="">Select technique first</option>
                         </select>
@@ -455,46 +458,59 @@ function setSelectByName(name, value) {
 }
 
 (function () {
-    const state = { items: [], techniques: [] };
+    const state = { items: [], techniques: [], selectedTech: { id: '', name: '' } };
+
+    const techWrap = document.getElementById('mitre-technique-wrap');
+    const techDisplay = document.getElementById('mitre-technique-display');
+    const techPanel = document.getElementById('mitre-technique-panel');
+    const techOptContainer = document.getElementById('mitre-technique-options');
+
+    function renderTechniqueOptions(q) {
+        const needle = (q || '').toLowerCase();
+        techOptContainer.innerHTML = '';
+        state.techniques
+            .filter(t => !needle || `${t.technique_id} - ${t.name}`.toLowerCase().includes(needle))
+            .forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'ca-rule-opt';
+                div.dataset.value = t.technique_id;
+                div.dataset.name = t.name;
+                div.textContent = `${t.technique_id} - ${t.name}`;
+                techOptContainer.appendChild(div);
+            });
+    }
 
     async function loadTechniques() {
-        const sel = document.getElementById('mitre-technique');
         try {
             const resp = await fetch('/api/mitre/techniques');
             state.techniques = await resp.json();
             if (!state.techniques.length) {
-                sel.innerHTML = '<option value="">No techniques available (sync pending)</option>';
+                techDisplay.placeholder = 'No techniques available (sync pending)';
                 return;
             }
-            sel.innerHTML = '<option value="">-- Select Technique --</option>';
-            state.techniques.forEach(t => {
-                const opt = document.createElement('option');
-                opt.value = t.technique_id;
-                opt.textContent = `${t.technique_id} - ${t.name}`;
-                opt.dataset.name = t.name;
-                sel.appendChild(opt);
-            });
+            renderTechniqueOptions('');
+            techDisplay.placeholder = 'Type to search technique...';
+            techDisplay.disabled = false;
         } catch (e) {
-            sel.innerHTML = '<option value="">Error loading techniques</option>';
+            techDisplay.placeholder = 'Error loading techniques';
         }
     }
 
-    document.getElementById('mitre-technique').addEventListener('change', async function () {
-        const techId = this.value;
+    function clearTechniqueSelection() {
         const subSel = document.getElementById('mitre-subtechnique');
         const addBtn = document.getElementById('mitre-add-btn');
+        subSel.innerHTML = '<option value="">Select technique first</option>';
+        subSel.disabled = true;
+        addBtn.disabled = true;
+    }
 
-        if (!techId) {
-            subSel.innerHTML = '<option value="">Select technique first</option>';
-            subSel.disabled = true;
-            addBtn.disabled = true;
-            return;
-        }
-
+    async function selectTechnique(techId) {
+        const subSel = document.getElementById('mitre-subtechnique');
+        const addBtn = document.getElementById('mitre-add-btn');
+        if (!techId) { clearTechniqueSelection(); return; }
         addBtn.disabled = false;
         subSel.innerHTML = '<option value="">Loading...</option>';
         subSel.disabled = true;
-
         try {
             const resp = await fetch(`/api/mitre/subtechniques/${encodeURIComponent(techId)}`);
             const subs = await resp.json();
@@ -514,15 +530,32 @@ function setSelectByName(name, value) {
         } catch (e) {
             subSel.innerHTML = '<option value="">Error loading</option>';
         }
+    }
+
+    techDisplay.addEventListener('focus', () => { techPanel.style.display = 'block'; renderTechniqueOptions(techDisplay.value); });
+    techDisplay.addEventListener('input', () => {
+        techPanel.style.display = 'block';
+        state.selectedTech = { id: '', name: '' };
+        clearTechniqueSelection();
+        renderTechniqueOptions(techDisplay.value);
+    });
+    document.addEventListener('click', e => {
+        if (!techWrap.contains(e.target)) techPanel.style.display = 'none';
+    });
+    techOptContainer.addEventListener('click', async e => {
+        const opt = e.target.closest('.ca-rule-opt');
+        if (!opt) return;
+        state.selectedTech = { id: opt.dataset.value, name: opt.dataset.name };
+        techDisplay.value = opt.textContent;
+        techPanel.style.display = 'none';
+        await selectTechnique(state.selectedTech.id);
     });
 
     document.getElementById('mitre-add-btn').addEventListener('click', function () {
-        const techSel = document.getElementById('mitre-technique');
-        const subSel = document.getElementById('mitre-subtechnique');
-        const techId = techSel.value;
+        const techId = state.selectedTech.id;
         if (!techId) return;
-
-        const techName = techSel.options[techSel.selectedIndex].dataset.name || techId;
+        const subSel = document.getElementById('mitre-subtechnique');
+        const techName = state.selectedTech.name || techId;
         const subId = subSel.disabled ? '' : subSel.value;
         const subName = subId ? (subSel.options[subSel.selectedIndex].dataset.name || subId) : '';
 
