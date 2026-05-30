@@ -184,6 +184,11 @@
             <p class="mitre-stat-label">Only covered</p>
             <p class="mitre-stat-value">Off</p>
         </button>
+        <select id="domainFilter" class="form-select mitre-company-select" title="ATT&CK matrix">
+            {% for d in domain_options %}
+            <option value="{{ d.key }}" {% if d.key == selected_domain %}selected{% endif %}>{{ 'ICS' if d.key == 'ics' else d.key|capitalize }}</option>
+            {% endfor %}
+        </select>
         <select id="companyFilter" class="form-select mitre-company-select">
             <option value="">All companies</option>
             {% for c in companies %}
@@ -310,6 +315,12 @@
         const url = new URL(window.location.href);
         if (this.value) url.searchParams.set('company', this.value);
         else url.searchParams.delete('company');
+        window.location.href = url.toString();
+    });
+
+    document.getElementById('domainFilter').addEventListener('change', function () {
+        const url = new URL(window.location.href);
+        url.searchParams.set('domain', this.value);
         window.location.href = url.toString();
     });
 

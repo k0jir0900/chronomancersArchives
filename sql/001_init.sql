@@ -34,16 +34,19 @@ CREATE TABLE IF NOT EXISTS archives (
 
 CREATE TABLE IF NOT EXISTS mitre_techniques (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    technique_id VARCHAR(20) NOT NULL UNIQUE,
+    technique_id VARCHAR(20) NOT NULL,
     name VARCHAR(255) NOT NULL,
     tactic VARCHAR(500) DEFAULT NULL,
     parent_id VARCHAR(20) DEFAULT NULL,
+    domain VARCHAR(20) NOT NULL DEFAULT 'enterprise',
+    UNIQUE KEY uniq_tech_domain (technique_id, domain),
     INDEX idx_mitre_parent (parent_id)
 );
 
 CREATE TABLE IF NOT EXISTS mitre_sync (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    last_updated TIMESTAMP DEFAULT NULL
+    last_updated TIMESTAMP DEFAULT NULL,
+    domain VARCHAR(20) NOT NULL DEFAULT 'enterprise'
 );
 
 CREATE TABLE IF NOT EXISTS tags_pool (

@@ -81,6 +81,32 @@ def save_mitre_config(config):
     with open(MITRE_CONFIG_FILE, 'w') as f:
         json.dump(config, f)
 
+MITRE_DOMAINS = {
+    'enterprise': {
+        'label': 'Enterprise',
+        'url': 'https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json',
+        'kill_chain': 'mitre-attack',
+    },
+    'ics': {
+        'label': 'ICS / OT',
+        'url': 'https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/ics-attack/ics-attack.json',
+        'kill_chain': 'mitre-ics-attack',
+    },
+}
+
+def get_mitre_domain_config(config, domain):
+    # Legacy flat config (pre multi-domain) is treated as enterprise.
+    if domain == 'enterprise' and 'enterprise' not in config and 'attack_version' in config:
+        return config
+    return config.get(domain, {})
+
+def save_mitre_domain_config(domain, info):
+    config = load_mitre_config()
+    if 'enterprise' not in config and 'attack_version' in config:
+        config = {'enterprise': dict(config)}
+    config[domain] = info
+    save_mitre_config(config)
+
 REPORTS_CONFIG_FILE = 'reports_config.yaml'
 
 def load_reports_config():
@@ -227,8 +253,12 @@ def build_report_data(config, company, date_from, date_to):
 
     return data
 
-def sync_mitre_data():
-    url = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json"
+def sync_mitre_data(domain='enterprise'):
+    if domain not in MITRE_DOMAINS:
+        print(f"MITRE sync: unknown domain {domain}")
+        return False
+    url = MITRE_DOMAINS[domain]['url']
+    kill_chain = MITRE_DOMAINS[domain]['kill_chain']
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'chronomancers-archives/1.0'})
         with urllib.request.urlopen(req, timeout=120) as response:
@@ -264,11 +294,11 @@ def sync_mitre_data():
         name = obj.get('name', '')
         is_subtechnique = obj.get('x_mitre_is_subtechnique', False)
         tactics = [p['phase_name'] for p in obj.get('kill_chain_phases', [])
-                   if p.get('kill_chain_name') == 'mitre-attack']
+                   if p.get('kill_chain_name') == kill_chain]
         tactic_str = ','.join(tactics) if tactics else None
         parent_id = tech_id.split('.')[0] if is_subtechnique and '.' in tech_id else None
 
-        techniques.append((tech_id, name, tactic_str, parent_id))
+        techniques.append((tech_id, name, tactic_str, parent_id, domain))
 
     if not techniques:
         return False
@@ -279,7 +309,7 @@ def sync_mitre_data():
 
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT GET_LOCK('mitre_sync_lock', 0) AS acquired")
+        cursor.execute("SELECT GET_LOCK(%s, 0) AS acquired", (f'mitre_sync_lock_{domain}',))
         row = cursor.fetchone()
         if not row or not row[0]:
             cursor.close()
@@ -287,17 +317,17 @@ def sync_mitre_data():
             return False
 
         try:
-            cursor.execute("TRUNCATE TABLE mitre_techniques")
+            cursor.execute("DELETE FROM mitre_techniques WHERE domain = %s", (domain,))
             cursor.executemany(
-                "INSERT INTO mitre_techniques (technique_id, name, tactic, parent_id) VALUES (%s, %s, %s, %s)",
+                "INSERT INTO mitre_techniques (technique_id, name, tactic, parent_id, domain) VALUES (%s, %s, %s, %s, %s)",
                 techniques
             )
-            cursor.execute("DELETE FROM mitre_sync")
-            cursor.execute("INSERT INTO mitre_sync (last_updated) VALUES (NOW())")
+            cursor.execute("DELETE FROM mitre_sync WHERE domain = %s", (domain,))
+            cursor.execute("INSERT INTO mitre_sync (last_updated, domain) VALUES (NOW(), %s)", (domain,))
             conn.commit()
             total = len(techniques)
             subs = sum(1 for t in techniques if t[3] is not None)
-            save_mitre_config({
+            save_mitre_domain_config(domain, {
                 'attack_version': attack_version,
                 'spec_version': spec_version,
                 'total_techniques': total - subs,
@@ -305,17 +335,22 @@ def sync_mitre_data():
                 'last_sync': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'source': url,
             })
-            print(f"MITRE sync complete: {total} techniques stored")
+            print(f"MITRE sync complete ({domain}): {total} techniques stored")
             return True
         except Exception as e:
             print(f"MITRE DB error: {e}")
             return False
         finally:
-            cursor.execute("SELECT RELEASE_LOCK('mitre_sync_lock')")
+            cursor.execute("SELECT RELEASE_LOCK(%s)", (f'mitre_sync_lock_{domain}',))
             cursor.fetchone()
     finally:
         cursor.close()
         conn.close()
+
+
+def sync_all_mitre():
+    for domain in MITRE_DOMAINS:
+        sync_mitre_data(domain)
 
 
 def startup_mitre_check():
@@ -324,22 +359,26 @@ def startup_mitre_check():
         if not conn:
             return
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
-        row = cursor.fetchone()
-        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques")
-        count_row = cursor.fetchone()
+        for domain in MITRE_DOMAINS:
+            cursor.execute(
+                "SELECT last_updated FROM mitre_sync WHERE domain = %s ORDER BY id DESC LIMIT 1",
+                (domain,)
+            )
+            row = cursor.fetchone()
+            cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE domain = %s", (domain,))
+            count_row = cursor.fetchone()
+
+            needs_sync = True
+            if row and row['last_updated'] and count_row and count_row['cnt'] > 0:
+                days_since = (datetime.now() - row['last_updated']).days
+                needs_sync = days_since >= 7
+
+            if needs_sync:
+                print(f"Starting MITRE ATT&CK background sync ({domain})...")
+                t = threading.Thread(target=sync_mitre_data, args=(domain,), daemon=True)
+                t.start()
         cursor.close()
         conn.close()
-
-        needs_sync = True
-        if row and row['last_updated'] and count_row and count_row['cnt'] > 0:
-            days_since = (datetime.now() - row['last_updated']).days
-            needs_sync = days_since >= 7
-
-        if needs_sync:
-            print("Starting MITRE ATT&CK background sync...")
-            t = threading.Thread(target=sync_mitre_data, daemon=True)
-            t.start()
     except Exception as e:
         print(f"MITRE startup check error: {e}")
 
@@ -413,6 +452,22 @@ def init_db():
             pass
         try:
             cursor.execute("ALTER TABLE archives ADD COLUMN severity VARCHAR(20) NULL")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE mitre_techniques ADD COLUMN domain VARCHAR(20) NOT NULL DEFAULT 'enterprise'")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE mitre_techniques DROP INDEX technique_id")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE mitre_techniques ADD UNIQUE KEY uniq_tech_domain (technique_id, domain)")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE mitre_sync ADD COLUMN domain VARCHAR(20) NOT NULL DEFAULT 'enterprise'")
         except mysql.connector.Error:
             pass
         cursor.execute("""
@@ -1132,6 +1187,26 @@ TACTIC_LABELS = {
     'impact': 'Impact'
 }
 
+ICS_TACTIC_ORDER = [
+    'initial-access', 'execution', 'persistence', 'privilege-escalation',
+    'evasion', 'discovery', 'lateral-movement', 'collection',
+    'command-and-control', 'inhibit-response-function',
+    'impair-process-control', 'impact'
+]
+ICS_TACTIC_LABELS = {
+    'initial-access': 'Initial Access', 'execution': 'Execution',
+    'persistence': 'Persistence', 'privilege-escalation': 'Privilege Escalation',
+    'evasion': 'Evasion', 'discovery': 'Discovery',
+    'lateral-movement': 'Lateral Movement', 'collection': 'Collection',
+    'command-and-control': 'Command & Control',
+    'inhibit-response-function': 'Inhibit Response Function',
+    'impair-process-control': 'Impair Process Control', 'impact': 'Impact'
+}
+MITRE_TACTICS = {
+    'enterprise': (TACTIC_ORDER, TACTIC_LABELS),
+    'ics': (ICS_TACTIC_ORDER, ICS_TACTIC_LABELS),
+}
+
 @app.route('/mitre-coverage')
 @login_required
 def mitre_coverage():
@@ -1141,6 +1216,10 @@ def mitre_coverage():
         return redirect(url_for('home'))
 
     selected_company = request.args.get('company', '').strip()
+    selected_domain = request.args.get('domain', 'enterprise').strip()
+    if selected_domain not in MITRE_DOMAINS:
+        selected_domain = 'enterprise'
+    tactic_order, tactic_labels = MITRE_TACTICS[selected_domain]
 
     cursor = conn.cursor(dictionary=True)
 
@@ -1167,9 +1246,10 @@ def mitre_coverage():
                     ELSE mt.technique_id
                 END
             ))
+            WHERE mt.domain = %s
             GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
             ORDER BY mt.technique_id
-        """, (selected_company,))
+        """, (selected_company, selected_domain))
     else:
         cursor.execute("""
             SELECT
@@ -1189,12 +1269,13 @@ def mitre_coverage():
                     ELSE mt.technique_id
                 END
             ))
+            WHERE mt.domain = %s
             GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
             ORDER BY mt.technique_id
-        """)
+        """, (selected_domain,))
     rows = cursor.fetchall()
 
-    cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
+    cursor.execute("SELECT last_updated FROM mitre_sync WHERE domain = %s ORDER BY id DESC LIMIT 1", (selected_domain,))
     sync_row = cursor.fetchone()
     last_sync = sync_row['last_updated'].strftime('%Y-%m-%d %H:%M') if sync_row else 'Never'
 
@@ -1223,7 +1304,7 @@ def mitre_coverage():
         if parent:
             parent['subtechniques'].append(sub)
 
-    matrix = {t: {'label': TACTIC_LABELS.get(t, t.replace('-', ' ').title()), 'techniques': []} for t in TACTIC_ORDER}
+    matrix = {t: {'label': tactic_labels.get(t, t.replace('-', ' ').title()), 'techniques': []} for t in tactic_order}
 
     for tech in techniques_by_id.values():
         for tactic in [t.strip() for t in tech['tactic'].split(',') if t.strip()]:
@@ -1240,14 +1321,16 @@ def mitre_coverage():
     total_subtechniques = len(subtechniques)
     covered_subtechniques = sum(1 for s in subtechniques if s['cdu_count'] > 0)
 
-    attack_version = load_mitre_config().get('attack_version')
+    attack_version = get_mitre_domain_config(load_mitre_config(), selected_domain).get('attack_version')
+    domain_options = [{'key': k, 'label': v['label']} for k, v in MITRE_DOMAINS.items()]
 
     return render_template('mitre_coverage.html',
-        matrix=matrix, tactic_order=TACTIC_ORDER,
+        matrix=matrix, tactic_order=tactic_order,
         total_techniques=total_techniques, covered_techniques=covered_techniques,
         total_subtechniques=total_subtechniques, covered_subtechniques=covered_subtechniques,
         last_sync=last_sync, companies=companies, selected_company=selected_company,
-        attack_version=attack_version)
+        attack_version=attack_version, domain_options=domain_options,
+        selected_domain=selected_domain)
 
 @app.route('/api/mitre/techniques')
 @login_required
@@ -1255,10 +1338,14 @@ def api_mitre_techniques():
     conn = get_db_connection()
     if not conn:
         return jsonify([])
+    domain = request.args.get('domain', 'enterprise').strip()
+    if domain not in MITRE_DOMAINS:
+        domain = 'enterprise'
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         "SELECT technique_id, name, tactic FROM mitre_techniques "
-        "WHERE parent_id IS NULL ORDER BY technique_id"
+        "WHERE parent_id IS NULL AND domain = %s ORDER BY technique_id",
+        (domain,)
     )
     techniques = cursor.fetchall()
     cursor.close()
@@ -1272,11 +1359,14 @@ def api_mitre_subtechniques(technique_id):
     conn = get_db_connection()
     if not conn:
         return jsonify([])
+    domain = request.args.get('domain', 'enterprise').strip()
+    if domain not in MITRE_DOMAINS:
+        domain = 'enterprise'
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         "SELECT technique_id, name FROM mitre_techniques "
-        "WHERE parent_id = %s ORDER BY technique_id",
-        (technique_id,)
+        "WHERE parent_id = %s AND domain = %s ORDER BY technique_id",
+        (technique_id, domain)
     )
     subs = cursor.fetchall()
     cursor.close()
@@ -1876,33 +1966,47 @@ def restore_backup_custom(filepath):
 def admin_mitre():
     config = load_mitre_config()
     conn = get_db_connection()
-    db_counts = {'techniques': 0, 'subtechniques': 0}
-    last_sync_db = None
-    if conn:
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NULL")
-        db_counts['techniques'] = cursor.fetchone()['cnt']
-        cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NOT NULL")
-        db_counts['subtechniques'] = cursor.fetchone()['cnt']
-        cursor.execute("SELECT last_updated FROM mitre_sync ORDER BY id DESC LIMIT 1")
-        row = cursor.fetchone()
-        if row:
-            last_sync_db = row['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+    domains = []
+    cursor = conn.cursor(dictionary=True) if conn else None
+    for key, meta in MITRE_DOMAINS.items():
+        info = {
+            'key': key,
+            'label': meta['label'],
+            'config': get_mitre_domain_config(config, key),
+            'techniques': 0,
+            'subtechniques': 0,
+            'last_sync': None,
+        }
+        if cursor:
+            cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NULL AND domain = %s", (key,))
+            info['techniques'] = cursor.fetchone()['cnt']
+            cursor.execute("SELECT COUNT(*) as cnt FROM mitre_techniques WHERE parent_id IS NOT NULL AND domain = %s", (key,))
+            info['subtechniques'] = cursor.fetchone()['cnt']
+            cursor.execute("SELECT last_updated FROM mitre_sync WHERE domain = %s ORDER BY id DESC LIMIT 1", (key,))
+            row = cursor.fetchone()
+            if row:
+                info['last_sync'] = row['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+        domains.append(info)
+    if cursor:
         cursor.close()
         conn.close()
-    return render_template('mitre_admin.html', config=config, db_counts=db_counts, last_sync_db=last_sync_db)
+    return render_template('mitre_admin.html', domains=domains)
 
 @app.route('/admin/mitre/sync', methods=['POST'])
 @login_required
 @admin_required
 def admin_mitre_sync():
-    t = threading.Thread(target=sync_mitre_data, daemon=True)
+    domain = request.form.get('domain', 'enterprise').strip()
+    if domain not in MITRE_DOMAINS:
+        flash('Unknown MITRE domain.', 'error')
+        return redirect(url_for('admin_mitre'))
+    t = threading.Thread(target=sync_mitre_data, args=(domain,), daemon=True)
     t.start()
     t.join(timeout=180)
     if t.is_alive():
-        flash('Sync started in background - may take a few minutes.', 'info')
+        flash(f'{MITRE_DOMAINS[domain]["label"]} sync started in background - may take a few minutes.', 'info')
     else:
-        flash('MITRE ATT&CK sync completed successfully.', 'success')
+        flash(f'{MITRE_DOMAINS[domain]["label"]} ATT&CK sync completed successfully.', 'success')
     return redirect(url_for('admin_mitre'))
 
 @app.route('/backup', methods=['GET'])
@@ -2080,7 +2184,7 @@ if scheduler_available:
     if scheduler:
         try:
             scheduler.add_job(
-                func=sync_mitre_data,
+                func=sync_all_mitre,
                 trigger=IntervalTrigger(days=7),
                 id='mitre_sync_job',
                 name='MITRE ATT&CK Sync',

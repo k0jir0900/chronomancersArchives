@@ -29,7 +29,12 @@
       "Bash(Start-Sleep -Seconds 15)",
       "WebFetch(domain:api.cdnjs.com)",
       "PowerShell(head *)",
-      "Bash(dir D:GitHubchronomancersArchives *)"
+      "Bash(dir D:GitHubchronomancersArchives *)",
+      "PowerShell(\\(Select-String -Path \"E:\\\\GitHub\\\\chronomancersArchives\\\\app.py\" -Pattern \"selected_domain\"\\).Count; \"---\"; \\(Select-String -Path \"E:\\\\GitHub\\\\chronomancersArchives\\\\app.py\" -Pattern \"MITRE_DOMAINS\"\\).Count; \"---\"; \\(Select-String -Path \"E:\\\\GitHub\\\\chronomancersArchives\\\\app.py\" -Pattern \"ICS_TACTIC_ORDER\"\\).Count)",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "PowerShell(\"TEST-OUTPUT-MARKER\")",
+      "PowerShell(cd \"E:\\\\GitHub\\\\chronomancersArchives\"; python -m py_compile app.py; if\\($LASTEXITCODE -eq 0\\){\"PYOK\"}else{\"PYFAIL\"}; \"MITRE_DOMAINS=\" + \\(Select-String -Path app.py -Pattern 'MITRE_DOMAINS'\\).Count; \"selected_domain=\" + \\(Select-String -Path app.py -Pattern 'selected_domain'\\).Count; \"ICS_TACTIC_ORDER=\" + \\(Select-String -Path app.py -Pattern 'ICS_TACTIC_ORDER'\\).Count; \"---DIFFSTAT---\"; git --no-pager diff --stat)"
     ]
   }
 }
