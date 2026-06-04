@@ -5,8 +5,9 @@ import hashlib
 import json
 import atexit
 import yaml
-from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify
+from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify, g
 import mysql.connector
+import mysql.connector.pooling
 from datetime import datetime, timedelta
 import calendar
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,10 +29,16 @@ except ImportError:
 
 load_dotenv()
 
+# Anchor file paths to this module's directory so they resolve regardless of cwd.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'default_secret_key')
+app.secret_key = os.getenv('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError('SECRET_KEY environment variable is required')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = False  # TODO: poner en True al montar el reverse proxy / HTTPS
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.jinja_env.filters['split'] = lambda s, sep=',': s.split(sep)
 
@@ -42,7 +49,7 @@ def _humanize_td(val):
     return ' '.join(_TD_EXPAND.get(p.lower(), p.capitalize()) for p in str(val).split('_'))
 app.jinja_env.filters['humanize_td'] = _humanize_td
 
-UPLOAD_FOLDER = 'static/uploads'
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -52,28 +59,38 @@ def allowed_file(filename):
     return '.' in filename and \
             filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def get_db_connection():
-    try:
-        connection = mysql.connector.connect(
+_db_pool = None
+
+def _get_pool():
+    global _db_pool
+    if _db_pool is None:
+        _db_pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name='chronomancers_pool',
+            pool_size=int(os.getenv('DB_POOL_SIZE', 10)),
+            pool_reset_session=True,
             host=os.getenv('DB_HOST'),
             port=os.getenv('DB_PORT'),
             user=os.getenv('DB_USER'),
             password=os.getenv('DB_PASSWORD'),
             database=os.getenv('DB_NAME')
         )
-        return connection
+    return _db_pool
+
+def get_db_connection():
+    try:
+        return _get_pool().get_connection()
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         return None
 
-MITRE_CONFIG_FILE = 'mitre.conf'
+MITRE_CONFIG_FILE = os.path.join(BASE_DIR, 'mitre.conf')
 
 def load_mitre_config():
     if os.path.exists(MITRE_CONFIG_FILE):
         try:
             with open(MITRE_CONFIG_FILE, 'r') as f:
                 return json.load(f)
-        except:
+        except (json.JSONDecodeError, ValueError, OSError):
             return {}
     return {}
 
@@ -107,7 +124,7 @@ def save_mitre_domain_config(domain, info):
     config[domain] = info
     save_mitre_config(config)
 
-REPORTS_CONFIG_FILE = 'reports_config.yaml'
+REPORTS_CONFIG_FILE = os.path.join(BASE_DIR, 'reports_config.yaml')
 
 def load_reports_config():
     if not os.path.exists(REPORTS_CONFIG_FILE):
@@ -528,27 +545,32 @@ def init_db():
         cursor.close()
         conn.close()
 
+def _load_current_user(user_id):
+    conn = get_db_connection()
+    if not conn:
+        return None
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT id, username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (user_id,))
+        return cursor.fetchone()
+    except mysql.connector.Error:
+        try:
+            cursor.execute("SELECT id, username, role, profile_pic FROM users WHERE id = %s", (user_id,))
+            return cursor.fetchone()
+        except mysql.connector.Error:
+            cursor.execute("SELECT id, username, role FROM users WHERE id = %s", (user_id,))
+            return cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
 @app.context_processor
 def inject_user():
-    user = None
-    if 'user_id' in session:
-        conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor(dictionary=True)
-            try:
-                cursor.execute("SELECT id, username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
-                user = cursor.fetchone()
-            except:
-                try:
-                    cursor.execute("SELECT id, username, role, profile_pic FROM users WHERE id = %s", (session['user_id'],))
-                    user = cursor.fetchone()
-                except:
-                    cursor.execute("SELECT id, username, role FROM users WHERE id = %s", (session['user_id'],))
-                    user = cursor.fetchone()
-            
-            cursor.close()
-            conn.close()
-    return dict(current_user=user)
+    if 'user_id' not in session:
+        return dict(current_user=None)
+    if not hasattr(g, 'current_user'):
+        g.current_user = _load_current_user(session['user_id'])
+    return dict(current_user=g.current_user)
 
 @app.route('/')
 def index():
@@ -571,8 +593,16 @@ def home():
     
     start_date = request.args.get('start_date', default_start)
     end_date = request.args.get('end_date', default_end)
-    
-    delta = (datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(start_date, '%Y-%m-%d')).days
+
+    try:
+        start_dt_parsed = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt_parsed = datetime.strptime(end_date, '%Y-%m-%d')
+    except ValueError:
+        start_date, end_date = default_start, default_end
+        start_dt_parsed = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt_parsed = datetime.strptime(end_date, '%Y-%m-%d')
+
+    delta = (end_dt_parsed - start_dt_parsed).days
     filters = {
         'start_date': start_date,
         'end_date': end_date,
@@ -1079,7 +1109,7 @@ def register():
                 cursor.execute("SELECT full_name, username FROM users WHERE id = %s", (session['user_id'],))
                 user_info = cursor.fetchone()
                 modifier_name = user_info['full_name'] if user_info and user_info.get('full_name') else session.get('username')
-            except:
+            except mysql.connector.Error:
                 modifier_name = session.get('username')
 
             if third_party_user:
@@ -1088,7 +1118,7 @@ def register():
                     tp = cursor.fetchone()
                     if tp:
                         modifier_name = tp['full_name'] or tp['username']
-                except:
+                except mysql.connector.Error:
                     pass
 
             mitre_raw = request.form.get('mitre_json', '').strip()
@@ -1599,6 +1629,7 @@ def profile():
             else:
                 flash('Invalid theme selected.', 'error')
 
+        conn.close()
         return redirect(url_for('profile'))
 
     cursor = None
@@ -1608,7 +1639,7 @@ def profile():
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute("SELECT username, full_name, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
-        except:
+        except mysql.connector.Error:
             cursor.execute("SELECT username, role, profile_pic, theme_preference FROM users WHERE id = %s", (session['user_id'],))
         user_data = cursor.fetchone()
         cursor.execute("SELECT key_value, key_prefix, created_at, last_used_at FROM api_keys WHERE user_id = %s", (session['user_id'],))
@@ -1846,7 +1877,7 @@ def admin_delete_api_key(user_id):
     return redirect(url_for('users'))
 
 
-BACKUP_FOLDER = os.path.join(os.getcwd(), 'backups')
+BACKUP_FOLDER = os.path.join(BASE_DIR, 'backups')
 if not os.path.exists(BACKUP_FOLDER):
     os.makedirs(BACKUP_FOLDER)
 
@@ -1941,8 +1972,8 @@ def restore_backup_custom(filepath):
     if not conn:
         return False
 
+    cursor = conn.cursor()
     try:
-        cursor = conn.cursor()
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
 
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -1952,13 +1983,17 @@ def restore_backup_custom(filepath):
             cursor.execute(statement)
 
         conn.commit()
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-        cursor.close()
-        conn.close()
         return True
     except Exception as e:
         print(f"Restore Error: {e}")
         return False
+    finally:
+        try:
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+        except mysql.connector.Error:
+            pass
+        cursor.close()
+        conn.close()
 
 @app.route('/admin/mitre')
 @login_required
@@ -2103,7 +2138,7 @@ def upload_backup():
 
 # --- SCHEDULER CONFIGURATION ---
 
-SCHEDULER_CONFIG_FILE = 'backup.conf'
+SCHEDULER_CONFIG_FILE = os.path.join(BASE_DIR, 'backup.conf')
 scheduler = None
 
 if scheduler_available:
@@ -2118,7 +2153,7 @@ def load_schedule_config():
         try:
             with open(SCHEDULER_CONFIG_FILE, 'r') as f:
                 return json.load(f)
-        except:
+        except (json.JSONDecodeError, ValueError, OSError):
             return {}
     return {}
 

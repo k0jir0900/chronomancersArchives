@@ -34,7 +34,13 @@
       "Bash(git diff *)",
       "Read(//tmp/**)",
       "PowerShell(\"TEST-OUTPUT-MARKER\")",
-      "PowerShell(cd \"E:\\\\GitHub\\\\chronomancersArchives\"; python -m py_compile app.py; if\\($LASTEXITCODE -eq 0\\){\"PYOK\"}else{\"PYFAIL\"}; \"MITRE_DOMAINS=\" + \\(Select-String -Path app.py -Pattern 'MITRE_DOMAINS'\\).Count; \"selected_domain=\" + \\(Select-String -Path app.py -Pattern 'selected_domain'\\).Count; \"ICS_TACTIC_ORDER=\" + \\(Select-String -Path app.py -Pattern 'ICS_TACTIC_ORDER'\\).Count; \"---DIFFSTAT---\"; git --no-pager diff --stat)"
+      "PowerShell(cd \"E:\\\\GitHub\\\\chronomancersArchives\"; python -m py_compile app.py; if\\($LASTEXITCODE -eq 0\\){\"PYOK\"}else{\"PYFAIL\"}; \"MITRE_DOMAINS=\" + \\(Select-String -Path app.py -Pattern 'MITRE_DOMAINS'\\).Count; \"selected_domain=\" + \\(Select-String -Path app.py -Pattern 'selected_domain'\\).Count; \"ICS_TACTIC_ORDER=\" + \\(Select-String -Path app.py -Pattern 'ICS_TACTIC_ORDER'\\).Count; \"---DIFFSTAT---\"; git --no-pager diff --stat)",
+      "Bash(grep -n \"subtechniques/\\\\${encodeURIComponent\\(techId\\)}?domain\" templates/register.html)",
+      "Bash(SECRET_KEY=test DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=x DB_PASSWORD=x DB_NAME=x python -c \"import app; print\\('import OK'\\)\")",
+      "Bash(docker build *)",
+      "Bash(docker rmi *)",
+      "Bash(set -e)",
+      "Bash(grep -vE '^\\\\.$|^\\\\.\\\\.$|__pycache__|^\\\\.git$')"
     ]
   }
 }

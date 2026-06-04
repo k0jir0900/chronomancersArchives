@@ -433,7 +433,10 @@ async function loadRuleData(ruleName) {
         const data = await resp.json();
         if (data && Object.keys(data).length) {
             if (data.siem)        setSelectByName('siem', data.siem);
-            if (data.environment) setSelectByName('environment', data.environment);
+            if (data.environment) {
+                setSelectByName('environment', data.environment);
+                if (window.reloadMitreTechniques) await window.reloadMitreTechniques(data.environment);
+            }
             if (data.severity)    setSelectByName('severity', data.severity);
             if (data.rule_status) setSelectByName('rule_status', data.rule_status);
         }
@@ -458,12 +461,19 @@ function setSelectByName(name, value) {
 }
 
 (function () {
-    const state = { items: [], techniques: [], selectedTech: { id: '', name: '' } };
+    const state = { items: [], techniques: [], selectedTech: { id: '', name: '', domain: '' } };
 
     const techWrap = document.getElementById('mitre-technique-wrap');
     const techDisplay = document.getElementById('mitre-technique-display');
     const techPanel = document.getElementById('mitre-technique-panel');
     const techOptContainer = document.getElementById('mitre-technique-options');
+
+    function envToDomains(env) {
+        const e = (env || '').toLowerCase();
+        if (e === 'ot') return ['ics'];
+        if (e === 'both') return ['enterprise', 'ics'];
+        return ['enterprise'];
+    }
 
     function renderTechniqueOptions(q) {
         const needle = (q || '').toLowerCase();
@@ -475,15 +485,28 @@ function setSelectByName(name, value) {
                 div.className = 'ca-rule-opt';
                 div.dataset.value = t.technique_id;
                 div.dataset.name = t.name;
+                div.dataset.domain = t.domain;
                 div.textContent = `${t.technique_id} - ${t.name}`;
                 techOptContainer.appendChild(div);
             });
     }
 
-    async function loadTechniques() {
+    async function fetchDomainTechniques(domain) {
+        const resp = await fetch(`/api/mitre/techniques?domain=${encodeURIComponent(domain)}`);
+        const list = await resp.json();
+        return list.map(t => ({ ...t, domain }));
+    }
+
+    async function loadTechniques(env) {
+        techDisplay.disabled = true;
+        techDisplay.value = '';
+        techPanel.style.display = 'none';
+        state.selectedTech = { id: '', name: '', domain: '' };
+        clearTechniqueSelection();
+        techDisplay.placeholder = 'Loading techniques...';
         try {
-            const resp = await fetch('/api/mitre/techniques');
-            state.techniques = await resp.json();
+            const results = await Promise.all(envToDomains(env).map(fetchDomainTechniques));
+            state.techniques = results.flat();
             if (!state.techniques.length) {
                 techDisplay.placeholder = 'No techniques available (sync pending)';
                 return;
@@ -495,6 +518,7 @@ function setSelectByName(name, value) {
             techDisplay.placeholder = 'Error loading techniques';
         }
     }
+    window.reloadMitreTechniques = loadTechniques;
 
     function clearTechniqueSelection() {
         const subSel = document.getElementById('mitre-subtechnique');
@@ -504,7 +528,7 @@ function setSelectByName(name, value) {
         addBtn.disabled = true;
     }
 
-    async function selectTechnique(techId) {
+    async function selectTechnique(techId, domain) {
         const subSel = document.getElementById('mitre-subtechnique');
         const addBtn = document.getElementById('mitre-add-btn');
         if (!techId) { clearTechniqueSelection(); return; }
@@ -512,7 +536,7 @@ function setSelectByName(name, value) {
         subSel.innerHTML = '<option value="">Loading...</option>';
         subSel.disabled = true;
         try {
-            const resp = await fetch(`/api/mitre/subtechniques/${encodeURIComponent(techId)}`);
+            const resp = await fetch(`/api/mitre/subtechniques/${encodeURIComponent(techId)}?domain=${encodeURIComponent(domain || 'enterprise')}`);
             const subs = await resp.json();
             if (!subs.length) {
                 subSel.innerHTML = '<option value="">No subtechniques</option>';
@@ -535,7 +559,7 @@ function setSelectByName(name, value) {
     techDisplay.addEventListener('focus', () => { techPanel.style.display = 'block'; renderTechniqueOptions(techDisplay.value); });
     techDisplay.addEventListener('input', () => {
         techPanel.style.display = 'block';
-        state.selectedTech = { id: '', name: '' };
+        state.selectedTech = { id: '', name: '', domain: '' };
         clearTechniqueSelection();
         renderTechniqueOptions(techDisplay.value);
     });
@@ -545,11 +569,14 @@ function setSelectByName(name, value) {
     techOptContainer.addEventListener('click', async e => {
         const opt = e.target.closest('.ca-rule-opt');
         if (!opt) return;
-        state.selectedTech = { id: opt.dataset.value, name: opt.dataset.name };
+        state.selectedTech = { id: opt.dataset.value, name: opt.dataset.name, domain: opt.dataset.domain };
         techDisplay.value = opt.textContent;
         techPanel.style.display = 'none';
-        await selectTechnique(state.selectedTech.id);
+        await selectTechnique(state.selectedTech.id, state.selectedTech.domain);
     });
+
+    const envSelect = document.querySelector('[name="environment"]');
+    if (envSelect) envSelect.addEventListener('change', function () { loadTechniques(this.value); });
 
     document.getElementById('mitre-add-btn').addEventListener('click', function () {
         const techId = state.selectedTech.id;
@@ -634,7 +661,7 @@ function setSelectByName(name, value) {
 
     window.loadExistingMitre = loadExistingMitre;
 
-    loadTechniques();
+    loadTechniques(envSelect ? envSelect.value : '');
 
     // ---- Tags ----
     const tagState = { items: [], categories: [], categoryLabels: {} };

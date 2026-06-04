@@ -10,26 +10,21 @@ A web portal for managing detection rule lifecycles - tracking creations, modifi
 
 ### 1. Environment Variables
 
-Copy the `.env` file and set your values:
+Copy the example file and fill in your values:
 
 ```bash
-# GENERAL
-TZ=America/Santiago
-SECRET_KEY=<generate a random secret key>
-
-# DB
-MYSQL_ROOT_PASSWORD=<secure password>
-DB_HOST=mysql
-DB_PORT=3306
-DB_NAME=chronomancers_archives
-DB_USER=chronomancers_user
-DB_PASSWORD=<secure password>
+cp .env.example .env
 ```
 
-### 2. Start
+Notes:
+
+- `SECRET_KEY` is generated automatically on first start and persisted in the `app_secrets` volume. Leave it unset unless you want to pin a fixed value.
+- The MySQL root password is randomized on init (`MYSQL_RANDOM_ROOT_PASSWORD`); the app connects with `DB_USER` / `DB_PASSWORD`, never root.
+
+### 2. Build and Start
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 The portal runs at `http://localhost:5001`.
@@ -46,10 +41,31 @@ On first launch a default admin user is created automatically:
 
 ### Existing Deployment - Add Indexes
 
-If you have an existing database and want to apply the performance indexes introduced in `sql/002_indexes.sql`, connect to MySQL and run:
+The SQL files in `docker/mysql/` run automatically when the database is first initialized. To apply the performance indexes from `docker/mysql/002_indexes.sql` to an already-initialized database, run:
 
 ```bash
-docker compose exec mysql mysql -u root -p chronomancers_archives < sql/002_indexes.sql
+docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < docker/mysql/002_indexes.sql
+```
+
+---
+
+## Project Structure
+
+```
+.
+├── src/                  # Flask application
+│   ├── app.py
+│   ├── generate_data.py
+│   ├── reports_config.yaml
+│   ├── templates/
+│   └── static/
+├── docker/               # container provisioning
+│   ├── entrypoint.sh     # app bootstrap: generates SECRET_KEY, then launches the app
+│   └── mysql/            # MySQL init scripts (run on first DB init)
+├── Dockerfile            # multi-stage build, runs as a non-root user
+├── docker-compose.yml
+├── requirements.txt
+└── .env.example
 ```
 
 ---
@@ -117,5 +133,5 @@ docker compose exec chronomancers_archives python generate_data.py
 | Backend | Flask 3.0 (Python 3.12) |
 | Database | MySQL 8.4 |
 | Frontend | Bootstrap 5.3, Bootstrap Icons, Chart.js |
-| WSGI | Gunicorn |
-| Containerization | Docker Compose |
+| Server | Flask dev server (Gunicorn available for production) |
+| Containerization | Docker (multi-stage build) + Docker Compose |

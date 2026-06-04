@@ -6,10 +6,10 @@ __pycache__/
 # Environment
 .env
 
-# Runtime
-backup.conf
-backups/
-static/uploads/
+# Runtime (under src/)
+src/backup.conf
+src/backups/
+src/static/uploads/
 
 # Logs
 *.log
@@ -20,5 +20,4 @@ Thumbs.db
 *.png
 PROGRESS_REPORTS.md
 .claude/settings.local.json
-.claude/settings.local.json
-mitre.conf
+src/mitre.conf

@@ -4,7 +4,7 @@ services:
     container_name: mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
@@ -16,7 +16,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./sql:/docker-entrypoint-initdb.d:ro
+      - ./docker/mysql:/docker-entrypoint-initdb.d:ro
     command:
       - mysqld
       - --innodb_buffer_pool_size=2G
@@ -31,21 +31,22 @@ services:
       - --skip-name-resolve=ON
       - --max_allowed_packet=64M
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=${MYSQL_ROOT_PASSWORD} mysqladmin ping -h 127.0.0.1 -u root"]
+      test: ["CMD-SHELL", "MYSQL_PWD=${DB_PASSWORD} mysqladmin ping -h 127.0.0.1 -u ${DB_USER}"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
 
   chronomancers_archives:
-    image: python:3.12-slim
+    build: .
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
-    working_dir: /app
+    working_dir: /app/src
     volumes:
       - .:/app
+      - app_secrets:/run/secrets
     ports:
       - "5001:5001"
     environment:
@@ -56,16 +57,9 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      SECRET_KEY: ${SECRET_KEY}
     init: true
-    command: >
-      sh -c "apt-get update > /dev/null 2>&1 &&
-             apt-get install -y --no-install-recommends wget > /dev/null 2>&1 &&
-             rm -rf /var/lib/apt/lists/* &&
-             pip install --no-cache-dir -r /app/requirements.txt > /dev/null 2>&1 &&
-             python app.py"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5001/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health')\" || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
@@ -73,3 +67,4 @@ services:
 
 volumes:
   mysql_data:
+  app_secrets:

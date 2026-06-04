@@ -1,0 +1,29 @@
+.git
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Secrets and runtime-generated config
+.env
+src/mitre.conf
+src/backup.conf
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Runtime data (provided by volumes)
+src/backups/
+src/static/uploads/
+*.log
+
+# DB init scripts: mounted into the mysql container, not needed in the app image
+docker/mysql/
+
+# Dev-only
+.claude/
+*.md
