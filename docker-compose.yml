@@ -56,9 +56,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      ENABLE_SSL: ${ENABLE_SSL:-false}
+      DOMAIN: ${DOMAIN:-localhost}
+      DAYS: ${DAYS:-825}
     init: true
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import os,ssl,urllib.request; s='https' if os.getenv('ENABLE_SSL','false').lower()=='true' else 'http'; c=ssl._create_unverified_context() if s=='https' else None; urllib.request.urlopen(f'{s}://127.0.0.1:5001/health', context=c)\" || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 10
