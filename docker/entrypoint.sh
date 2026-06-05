@@ -18,4 +18,15 @@ if [ -z "$SECRET_KEY" ]; then
 fi
 
 cd /app/src
-exec python app.py
+
+# Single worker with threads: app.py starts an in-process APScheduler at import
+# time, so multiple worker processes would duplicate the scheduled jobs.
+# Concurrency comes from threads, not extra workers.
+exec gunicorn \
+    --bind 0.0.0.0:5001 \
+    --workers 1 \
+    --threads "${GUNICORN_THREADS:-4}" \
+    --timeout "${GUNICORN_TIMEOUT:-120}" \
+    --access-logfile - \
+    --error-logfile - \
+    app:app

@@ -414,6 +414,7 @@
         <!-- Edit form -->
         <div id="mitre-edit-panel" style="display:none;" class="mt-3 pt-3" style="border-top:1px solid var(--border);">
             <form method="POST" action="/history/edit-mitre">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="record_id" value="{{ latest_id }}">
                 <input type="hidden" name="redirect_url" value="{{ request.url }}">
                 <div class="mitre-add-row mb-2">
@@ -467,6 +468,7 @@
         <!-- Edit form -->
         <div id="tags-edit-panel" style="display:none;" class="mt-3 pt-3">
             <form method="POST" action="/history/edit-tags">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="record_id" value="{{ latest_id }}">
                 <input type="hidden" name="redirect_url" value="{{ request.url }}">
                 <div class="mitre-add-row mb-2">
@@ -833,7 +835,10 @@
             try {
                 await fetch('/api/tags', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                    },
                     body: JSON.stringify({ category: cat, value: val })
                 });
             } catch (e) {}

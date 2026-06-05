@@ -4,6 +4,9 @@
 .dockerignore
 Dockerfile
 docker-compose.yml
+docker-compose.override.yml
+docker-compose.prod.yml
+Makefile
 
 # Secrets and runtime-generated config
 .env

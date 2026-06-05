@@ -7,6 +7,7 @@
     <div class="ca-form-card">
 
         <form method="POST" action="/register" class="ca-form-body">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <!-- Rule identification -->
             <div class="ca-form-section">
@@ -728,7 +729,10 @@ function setSelectByName(name, value) {
         try {
             await fetch('/api/tags', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
                 body: JSON.stringify({ category: cat, value: val })
             });
         } catch (e) {}

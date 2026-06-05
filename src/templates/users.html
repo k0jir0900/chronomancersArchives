@@ -17,6 +17,7 @@
         </div>
         <div class="card-body">
             <form method="POST" action="/users/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label">Username <span class="text-danger">*</span></label>
@@ -88,6 +89,7 @@
                         <td class="text-secondary small align-middle">@{{ user.username }}</td>
                         <td>
                             <form action="/users/edit/{{ user.id }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="action" value="update_role">
                                 <select name="role" onchange="this.form.submit()" class="form-select ca-inline-select">
                                     <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
@@ -123,6 +125,7 @@
 
                                 {% if current_user.id != user.id %}
                                 <form action="/users/edit/{{ user.id }}" method="POST" class="d-flex">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="action" value="{{ 'disable' if user.is_active else 'enable' }}">
                                     <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-{{ 'warning' if user.is_active else 'success' }}" style="width:5.5rem;">
                                         <i class="bi bi-{{ 'slash-circle' if user.is_active else 'check-circle' }} me-1"></i>{{ 'Disable' if user.is_active else 'Enable' }}
@@ -152,6 +155,7 @@
                                 {% else %}
                                 <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('{{ 'Regenerate' if user.key_value else 'Generate' }} API key for {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="width:6.5rem;">
                                         <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regen Key' if user.key_value else 'Gen Key' }}
                                     </button>
@@ -161,6 +165,7 @@
                                 {% if user.key_value and user.role != 'third_party' %}
                                 <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete API key for {{ user.username }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger" style="width:5.5rem;">
                                         <i class="bi bi-key-fill me-1"></i>Del Key
                                     </button>
@@ -174,6 +179,7 @@
                                 {% if current_user.id != user.id %}
                                 <form action="/users/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete user ' + {{ user.username | tojson }} + '?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm" style="width:5rem;">
                                         <i class="bi bi-trash3 me-1"></i>Delete
                                     </button>
@@ -188,6 +194,7 @@
                             <!-- Reset Password Form -->
                             <div id="reset-password-{{ user.id }}" style="display:none;" class="mt-2">
                                 <form action="/users/edit/{{ user.id }}" method="POST" class="d-flex gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="action" value="reset_password">
                                     <input type="password" name="password" placeholder="New password" required
                                         class="form-control form-control-sm" style="max-width:200px;">

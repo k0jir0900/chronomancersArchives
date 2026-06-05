@@ -61,6 +61,7 @@
                     <div class="col-sm-6 col-lg">
                         <form action="{{ url_for('admin_mitre_sync') }}" method="POST"
                             onsubmit="return confirm('Force a full {{ d.label }} ATT&CK sync? This may take up to 3 minutes.');" class="h-100">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="domain" value="{{ d.key }}">
                             <button type="submit" class="stat-card w-100 h-100 border-0 text-start"
                                 style="cursor:pointer;background:rgba(88,166,255,.08);border:1.5px solid #58a6ff!important;border-radius:.75rem;transition:background .15s,box-shadow .15s;"

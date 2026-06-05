@@ -13,6 +13,9 @@ import calendar
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 import urllib.request
 import urllib.error
@@ -38,9 +41,12 @@ if not app.secret_key:
     raise RuntimeError('SECRET_KEY environment variable is required')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False  # TODO: poner en True al montar el reverse proxy / HTTPS
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.jinja_env.filters['split'] = lambda s, sep=',': s.split(sep)
+
+csrf = CSRFProtect(app)
+limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
 
 _TD_EXPAND = {'fp': 'False Positive', 'fn': 'False Negative', 'tp': 'True Positive', 'tn': 'True Negative'}
 def _humanize_td(val):
@@ -1030,6 +1036,7 @@ def diff_rules():
     return render_template('diff.html', all_rules=all_rules, selected_rule=selected_rule, versions=versions, v1_id=v1_id, v2_id=v2_id, rule1_content_json=r1_json, rule2_content_json=r2_json, v1_label=v1_label, v2_label=v2_label)
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -1814,6 +1821,7 @@ def delete_user(user_id):
 @app.route('/users/api-key/regenerate/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
+@limiter.limit("20 per minute")
 def admin_regenerate_api_key(user_id):
     new_key = 'ca_' + secrets.token_hex(32)
     key_hash = hashlib.sha256(new_key.encode()).hexdigest()
@@ -2354,6 +2362,7 @@ def require_api_key(f):
 
 @app.route('/profile/api-key/generate', methods=['POST'])
 @login_required
+@limiter.limit("20 per minute")
 def generate_api_key():
     new_key = 'ca_' + secrets.token_hex(32)
     key_hash = hashlib.sha256(new_key.encode()).hexdigest()
@@ -2733,4 +2742,7 @@ def reports():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=True)
+    # Local development only. In containers/production the app is served by
+    # gunicorn (see docker/entrypoint.sh); debug is off unless FLASK_DEBUG=true.
+    debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, host='0.0.0.0', port=5001, use_reloader=debug)

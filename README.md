@@ -24,10 +24,12 @@ Notes:
 ### 2. Build and Start
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build   # or: make up
 ```
 
-The portal runs at `http://localhost:5001`.
+The portal runs at `http://localhost:5001`. For production, dev/prod compose
+layering, gunicorn tuning, logging, and security flags, see
+[docs/operations.md](docs/operations.md).
 
 ### 3. Default Credentials
 
@@ -60,10 +62,15 @@ docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$
 │   ├── templates/
 │   └── static/
 ├── docker/               # container provisioning
-│   ├── entrypoint.sh     # app bootstrap: generates SECRET_KEY, then launches the app
+│   ├── entrypoint.sh     # app bootstrap: generates SECRET_KEY, then launches gunicorn
 │   └── mysql/            # MySQL init scripts (run on first DB init)
+├── docs/                 # operational documentation
+│   └── operations.md
 ├── Dockerfile            # multi-stage build, runs as a non-root user
-├── docker-compose.yml
+├── docker-compose.yml          # base
+├── docker-compose.override.yml # local dev (not versioned)
+├── docker-compose.prod.yml     # production
+├── Makefile              # build/up/down/logs/prod shortcuts
 ├── requirements.txt
 └── .env.example
 ```
@@ -133,5 +140,5 @@ docker compose exec chronomancers_archives python generate_data.py
 | Backend | Flask 3.0 (Python 3.12) |
 | Database | MySQL 8.4 |
 | Frontend | Bootstrap 5.3, Bootstrap Icons, Chart.js |
-| Server | Flask dev server (Gunicorn available for production) |
+| Server | Gunicorn (single worker, threaded) |
 | Containerization | Docker (multi-stage build) + Docker Compose |

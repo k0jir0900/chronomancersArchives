@@ -13,6 +13,7 @@
                     <p class="text-secondary small mb-0">Creates a copy of the current database state.</p>
                 </div>
                 <form action="{{ url_for('create_backup') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-success">
                         <i class="bi bi-floppy me-2"></i>Create Backup
                     </button>
@@ -29,6 +30,7 @@
                 </div>
                 <form action="{{ url_for('upload_backup') }}" method="POST" enctype="multipart/form-data"
                     class="d-flex gap-2 align-items-center flex-wrap">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="file" name="backup_file" accept=".sql" required
                         class="form-control form-control-sm" style="max-width:220px;">
                     <button type="submit" class="btn btn-outline-primary">
@@ -68,6 +70,7 @@
                             <div class="d-flex gap-2 justify-content-end flex-wrap">
                                 <form action="{{ url_for('restore_backup', filename=backup.name) }}" method="POST"
                                     onsubmit="return confirm('WARNING: This will overwrite the current database. Continue?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-warning ca-btn-sm">
                                         <i class="bi bi-upload me-1"></i>Restore
                                     </button>
@@ -78,6 +81,7 @@
                                 </a>
                                 <form action="{{ url_for('delete_backup', filename=backup.name) }}" method="POST"
                                     onsubmit="return confirm('Delete this backup file?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm">
                                         <i class="bi bi-trash3"></i>
                                     </button>
@@ -105,6 +109,7 @@
     </div>
     <div class="card-body">
         <form action="{{ url_for('schedule_backup') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3 align-items-end">
                 <div class="col-auto d-flex align-items-center">
                     <label class="form-check-label d-flex align-items-center gap-2 fw-medium" style="cursor:pointer;">
@@ -148,6 +153,7 @@
     </div>
     <div class="card-body">
         <form action="{{ url_for('save_logrotate') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3 align-items-end">
                 <div class="col-auto">
                     <label class="form-label">Retention (days)</label>
@@ -174,7 +180,8 @@
             </div>
         </form>
         <form id="logrotate-run-form" action="{{ url_for('run_logrotate') }}" method="POST"
-            onsubmit="return confirm('Delete all backups older than {{ rot_days }} days?');"></form>
+            onsubmit="return confirm('Delete all backups older than {{ rot_days }} days?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
         <p class="text-secondary small mt-2 mb-0">
             Backups older than <strong>{{ rot_days }}</strong> days will be permanently deleted when rotation runs.
         </p>

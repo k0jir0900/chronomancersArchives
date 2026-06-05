@@ -12,8 +12,6 @@ services:
       TZ: ${TZ}
     expose:
       - "3306"
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d:ro
@@ -45,18 +43,18 @@ services:
         condition: service_healthy
     working_dir: /app/src
     volumes:
-      - .:/app
       - app_secrets:/run/secrets
     ports:
       - "5001:5001"
     environment:
-      TZ: America/Santiago
+      TZ: ${TZ}
       PYTHONUNBUFFERED: "1"
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
     init: true
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health')\" || exit 1"]

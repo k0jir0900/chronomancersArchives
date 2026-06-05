@@ -3,8 +3,9 @@
 *.pyo
 __pycache__/
 
-# Environment
+# Environment + local compose override
 .env
+docker-compose.override.yml
 
 # Runtime (under src/)
 src/backup.conf
@@ -19,5 +20,8 @@ src/static/uploads/
 Thumbs.db
 *.png
 PROGRESS_REPORTS.md
-.claude/settings.local.json
+
+# Claude Code local state
+.claude/
+
 src/mitre.conf
