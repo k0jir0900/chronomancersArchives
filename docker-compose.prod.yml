@@ -11,6 +11,7 @@ services:
   chronomancers_archives:
     environment:
       SESSION_COOKIE_SECURE: "true"
+      TRUST_PROXY: "true"
     deploy:
       resources:
         limits:

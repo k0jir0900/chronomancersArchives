@@ -1,5 +1,5 @@
 <!--
-Version: 1.3.0
+Version: 1.4.0
 Update this version on every modification of this file (SemVer: MAJOR.MINOR.PATCH).
 -->
 
@@ -56,6 +56,27 @@ interchangeable.
 - Plain hyphens and straight quotes only.
 - Natural language characters (accents, CJK, ...) are fine when content requires them.
 - Code output must be copy-paste safe.
+
+## Skills
+
+Run these skills by default at the points below; do not wait to be asked.
+
+- **`/code-review`** - on the working diff before any commit. Always.
+- **`/security-review`** - before committing changes that touch authentication,
+  sessions, secrets, user input, SQL, file uploads, or any network-reachable
+  endpoint. This is a web app with login, API keys, and uploads, so it applies
+  to most backend changes.
+- **`/verify`** (or **`/run`**) - to confirm a change works against the running
+  app, not just that it parses. The standard check here is
+  `docker compose up -d --build`, then validate via the health endpoint and
+  `docker compose logs` (HTTP status codes in the access log).
+- **`/fewer-permission-prompts`** - periodically, to keep the read-only
+  allowlist current. Never allowlist arbitrary-code-execution or mutating
+  commands (`docker run/exec`, `python`, `curl`, `git` wildcards); keep those
+  prompting.
+
+Order before a commit: `/code-review` -> `/security-review` (if backend/security
+touched) -> `/verify` -> commit.
 
 ---
 

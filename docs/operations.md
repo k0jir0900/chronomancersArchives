@@ -78,6 +78,11 @@ files* (`.sql`), not application logs.
 - `SESSION_COOKIE_SECURE` defaults to `false`. Set it to `true` (the prod
   compose does this) when serving over HTTPS so session cookies are only sent
   on secure connections.
+- `TRUST_PROXY` defaults to `false`. Set it to `true` (the prod compose does
+  this) only when running behind a trusted reverse proxy. It enables `ProxyFix`
+  so `X-Forwarded-For`/`-Proto` are honored and the rate limiter and audit log
+  key on the real client IP instead of the proxy IP. Leave it `false` when the
+  app is directly reachable, or clients could spoof their address.
 - CSRF protection (Flask-WTF) is enabled globally; all POST forms carry a
   `csrf_token` and JSON `fetch` POSTs send the `X-CSRFToken` header.
 - Rate limiting (Flask-Limiter) guards `/login` and the API-key endpoints.

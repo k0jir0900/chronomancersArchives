@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import calendar
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -44,6 +45,12 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.jinja_env.filters['split'] = lambda s, sep=',': s.split(sep)
+
+# Trust X-Forwarded-* only behind a known reverse proxy (set TRUST_PROXY=true in
+# that deployment). Without this, request.remote_addr is the proxy IP, so the
+# rate limiter and audit log would see every client as the same address.
+if os.getenv('TRUST_PROXY', 'false').lower() == 'true':
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 csrf = CSRFProtect(app)
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
