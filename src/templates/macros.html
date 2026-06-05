@@ -1,0 +1,11 @@
+{# Single source of truth for the time-range preset options.
+   Date math lives in static/js/app.js (presetRange) and app.py (preset_date_range). #}
+{% macro preset_options(selected) -%}
+<option value=""         {% if selected == '' %}selected{% endif %}>All time</option>
+<option value="week"     {% if selected == 'week' %}selected{% endif %}>This week</option>
+<option value="lastweek" {% if selected == 'lastweek' %}selected{% endif %}>Last week</option>
+<option value="month"    {% if selected == 'month' %}selected{% endif %}>This month</option>
+<option value="7d"       {% if selected == '7d' %}selected{% endif %}>Last 7 days</option>
+<option value="30d"      {% if selected == '30d' %}selected{% endif %}>Last 30 days</option>
+<option value="90d"      {% if selected == '90d' %}selected{% endif %}>Last 90 days</option>
+{%- endmacro %}

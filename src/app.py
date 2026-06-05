@@ -585,6 +585,40 @@ def inject_user():
         g.current_user = _load_current_user(session['user_id'])
     return dict(current_user=g.current_user)
 
+# Single source of truth for the time-range presets used across the app
+# (Home, Reports). The dropdown labels live in templates/macros.html and the
+# client-side date math in static/js/app.js; keep all three in sync.
+PRESET_KEYS = ['week', 'lastweek', 'month', '7d', '30d', '90d']
+
+
+def preset_date_range(key, today=None):
+    """(from_iso, to_iso) for a named preset, or ('', '') for All time."""
+    today = today or datetime.now().date()
+    if key == 'week':
+        f = today - timedelta(days=today.weekday())
+        t = today + timedelta(days=6 - today.weekday())
+    elif key == 'lastweek':
+        f = today - timedelta(days=today.weekday() + 7)
+        t = today - timedelta(days=today.weekday() + 1)
+    elif key == 'month':
+        f = today.replace(day=1)
+        t = (f + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    elif key in ('7d', '30d', '90d'):
+        f = today - timedelta(days=int(key[:-1]))
+        t = today
+    else:
+        return ('', '')
+    return (f.isoformat(), t.isoformat())
+
+
+def detect_preset(date_from, date_to, today=None):
+    """Reverse of preset_date_range: which preset key matches the given range."""
+    for k in PRESET_KEYS:
+        if (date_from, date_to) == preset_date_range(k, today):
+            return k
+    return ''
+
+
 @app.route('/')
 def index():
     if 'user_id' in session:
@@ -601,25 +635,32 @@ def home():
     
     cursor = conn.cursor(dictionary=True)
     
-    default_start = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    default_end = datetime.now().strftime('%Y-%m-%d')
-    
+    # Default preset across menus is "This week".
+    default_start, default_end = preset_date_range('week')
+
     start_date = request.args.get('start_date', default_start)
     end_date = request.args.get('end_date', default_end)
 
-    try:
-        start_dt_parsed = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt_parsed = datetime.strptime(end_date, '%Y-%m-%d')
-    except ValueError:
-        start_date, end_date = default_start, default_end
-        start_dt_parsed = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt_parsed = datetime.strptime(end_date, '%Y-%m-%d')
+    if not start_date and not end_date:
+        # "All time" preset: span from the first record to today so the rest of
+        # the route (BETWEEN queries, daily chart axis) keeps working unchanged.
+        preset_key = ''
+        cursor.execute("SELECT MIN(DATE(created_at)) AS first FROM archives")
+        first = cursor.fetchone()['first']
+        start_date = first.isoformat() if first else default_start
+        end_date = default_end
+    else:
+        try:
+            datetime.strptime(start_date, '%Y-%m-%d')
+            datetime.strptime(end_date, '%Y-%m-%d')
+        except ValueError:
+            start_date, end_date = default_start, default_end
+        preset_key = detect_preset(start_date, end_date)
 
-    delta = (end_dt_parsed - start_dt_parsed).days
     filters = {
         'start_date': start_date,
         'end_date': end_date,
-        'preset': delta if delta in (7, 15, 30, 90) else None
+        'preset_key': preset_key
     }
     
     cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives")
@@ -2103,10 +2144,13 @@ def restore_backup(filename):
         return redirect(url_for('list_backups'))
     
     if restore_backup_custom(filepath):
-        flash(f"Database restored from '{filename}'.", "success")
-    else:
-        flash("Error restoring database.", "error")
-        
+        # The restore replaces the users table, so the current session may point
+        # to a user that no longer exists. Force a re-login.
+        session.clear()
+        flash(f"Database restored from '{filename}'. Please log in again.", "success")
+        return redirect(url_for('login'))
+
+    flash("Error restoring database.", "error")
     return redirect(url_for('list_backups'))
 
 @app.route('/backup/delete/<filename>', methods=['POST'])
@@ -2673,10 +2717,56 @@ def audit():
                            action_choices=action_choices)
 
 
+@app.route('/search')
+@login_required
+def search_cdu():
+    query = request.args.get('q', '').strip()
+    results = []
+    if query:
+        # Wildcard search over the latest version's rule_content. Escape LIKE
+        # specials in the literal input, then map * -> % and ? -> _. With no
+        # wildcard, match as a substring (contains).
+        escaped = query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        if '*' in query or '?' in query:
+            pattern = escaped.replace('*', '%').replace('?', '_')
+        else:
+            pattern = f"%{escaped}%"
+
+        conn = get_db_connection()
+        if not conn:
+            flash('Database connection failed.', 'error')
+            return redirect(url_for('home'))
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT a.rule_name, a.company, a.environment, a.rule_status, a.mitre,
+                   c.version
+            FROM archives a
+            JOIN (
+                SELECT rule_name, company, environment, MAX(id) AS max_id, COUNT(*) AS version
+                FROM archives
+                GROUP BY rule_name, company, environment
+            ) c ON a.id = c.max_id
+            WHERE a.rule_content LIKE %s
+            ORDER BY a.rule_name
+        """, (pattern,))
+        results = cursor.fetchall()
+        for row in results:
+            m = row.get('mitre')
+            if isinstance(m, str):
+                try:
+                    m = json.loads(m)
+                except (json.JSONDecodeError, ValueError):
+                    m = None
+            row['has_mitre'] = bool(m)
+        cursor.close()
+        conn.close()
+
+    return render_template('search.html', query=query, results=results)
+
+
 @app.route('/reports')
 @login_required
 def reports():
-    from datetime import date as _date, timedelta
     configs  = load_reports_config()
     report_id = request.args.get('id', '')
     company   = request.args.get('company', '')
@@ -2686,34 +2776,10 @@ def reports():
 
     selected = next((c for c in configs if c['id'] == report_id), None)
 
-    today = _date.today()
-    week_from = (today - timedelta(days=today.weekday())).isoformat()
-    week_to   = (today + timedelta(days=6 - today.weekday())).isoformat()
-    last_week_from = (today - timedelta(days=today.weekday() + 7)).isoformat()
-    last_week_to   = (today - timedelta(days=today.weekday() + 1)).isoformat()
-
     if selected and 'from' not in request.args and 'to' not in request.args:
-        date_from = week_from
-        date_to   = week_to
+        date_from, date_to = preset_date_range('week')
 
-    preset = ''
-    if date_from == week_from and date_to == week_to:
-        preset = 'week'
-    elif date_from == last_week_from and date_to == last_week_to:
-        preset = 'lastweek'
-    else:
-        month_from = today.replace(day=1).isoformat()
-        next_month = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
-        month_to = (next_month - timedelta(days=1)).isoformat()
-        if date_from == month_from and date_to == month_to:
-            preset = 'month'
-        else:
-            for days, key in ((7, '7d'), (30, '30d'), (90, '90d')):
-                f = (today - timedelta(days=days)).isoformat()
-                t = today.isoformat()
-                if date_from == f and date_to == t:
-                    preset = key
-                    break
+    preset = detect_preset(date_from, date_to)
 
     title_map = {
         'week':     'Weekly Report',

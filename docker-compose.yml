@@ -44,6 +44,11 @@ services:
     working_dir: /app/src
     volumes:
       - app_secrets:/run/secrets
+      # Runtime data on named volumes (writable by appuser, persisted across
+      # recreates). Also shields these paths from the dev bind mount, whose host
+      # files are root-owned and not writable by the container user.
+      - backups_data:/app/src/backups
+      - uploads_data:/app/src/static/uploads
     ports:
       - "5001:5001"
     environment:
@@ -70,3 +75,5 @@ services:
 volumes:
   mysql_data:
   app_secrets:
+  backups_data:
+  uploads_data:

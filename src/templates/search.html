@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Search – Chronomancers Archives{% endblock %}
+{% block page_title %}Search{% endblock %}
+
+{% block head %}
+<style>
+.ca-status-badge {
+    display: inline-block;
+    width: 82px;
+    padding: .2rem 0;
+    text-align: center;
+    border-radius: .2rem;
+    font-size: .78rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: #fff;
+    white-space: nowrap;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="GET" action="/search" class="d-flex gap-2 align-items-center mb-4">
+    <div style="flex:1;min-width:0;position:relative;">
+        <i class="bi bi-search position-absolute" style="left:.85rem;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
+        <input type="text" name="q" value="{{ query }}" autocomplete="off"
+            class="form-control" style="padding-left:2.4rem;"
+            placeholder="Search the latest CDU query content (use * and ? as wildcards)...">
+    </div>
+    <button type="submit" class="btn btn-primary text-nowrap">
+        <i class="bi bi-search me-1"></i>Search
+    </button>
+</form>
+
+{% if query %}
+<p class="text-secondary small mb-3">
+    {{ results|length }} CDU(s) whose latest version query matches <code>{{ query }}</code>
+</p>
+
+{% if results %}
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width:1%;white-space:nowrap;padding-left:1.25rem;">#</th>
+                        <th style="padding-left:1rem;">CDU Name</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Company</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Environment</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Version</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">Status</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;">MITRE Status</th>
+                        <th class="text-center" style="width:1%;white-space:nowrap;padding-right:1.25rem;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule_meta in results %}
+                    <tr>
+                        <td class="text-center text-secondary" style="padding-left:1.25rem;white-space:nowrap;">{{ loop.index }}</td>
+                        <td class="fw-medium" style="padding-left:1rem;">{{ rule_meta.rule_name }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;"><i class="bi bi-building me-1"></i>{{ rule_meta.company }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;"><i class="bi bi-server me-1"></i>{{ rule_meta.environment }}</td>
+                        <td class="text-center text-secondary" style="white-space:nowrap;">{{ rule_meta.version }}</td>
+                        <td class="text-center" style="white-space:nowrap;">
+                            <span class="ca-status-badge" style="background:{{ '#1c7a37' if rule_meta.rule_status|lower == 'active' else '#b02a29' }};">{{ rule_meta.rule_status | title }}</span>
+                        </td>
+                        <td class="text-center" style="white-space:nowrap;">
+                            {% if rule_meta.has_mitre %}
+                            <span class="ca-status-badge" style="background:#1c7a37;">OK</span>
+                            {% else %}
+                            <span class="ca-status-badge" style="background:#b02a29;">Not Found</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center" style="white-space:nowrap;padding-right:1.25rem;">
+                            <a href="/history?cdu_name={{ rule_meta.rule_name | urlencode }}"
+                                class="btn btn-sm btn-primary text-decoration-none ca-btn-sm">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Detail
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-secondary py-5">
+    <i class="bi bi-search fs-1 d-block mb-2 opacity-50"></i>
+    No CDU matches that query.
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center text-secondary py-5">
+    <i class="bi bi-search fs-1 d-block mb-2 opacity-50"></i>
+    Type a string to search inside the latest version query of every CDU.
+    Use <code>*</code> (any characters) and <code>?</code> (single character) as wildcards.
+</div>
+{% endif %}
+{% endblock %}

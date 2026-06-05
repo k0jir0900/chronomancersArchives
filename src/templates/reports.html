@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from 'macros.html' import preset_options %}
 {% block title %}Reports – Chronomancers Archives{% endblock %}
 {% block page_title %}Reports{% endblock %}
 
@@ -120,13 +121,7 @@
 
         {% if 'date_range' in selected.filters %}
         <select id="quickRange" class="form-select form-select-sm ca-search-input" style="width:auto;min-width:130px;">
-            <option value=""         {% if preset == '' %}selected{% endif %}>All time</option>
-            <option value="week"     {% if preset == 'week' %}selected{% endif %}>This week</option>
-            <option value="lastweek" {% if preset == 'lastweek' %}selected{% endif %}>Last week</option>
-            <option value="month"    {% if preset == 'month' %}selected{% endif %}>This month</option>
-            <option value="7d"       {% if preset == '7d' %}selected{% endif %}>Last 7 days</option>
-            <option value="30d"      {% if preset == '30d' %}selected{% endif %}>Last 30 days</option>
-            <option value="90d"      {% if preset == '90d' %}selected{% endif %}>Last 90 days</option>
+            {{ preset_options(preset) }}
         </select>
         <span style="display:inline-block;width:1px;height:22px;background:var(--border);margin:0 .75rem;"></span>
         <input type="date" id="dateFrom" name="from" class="form-control form-control-sm ca-search-input" value="{{ date_from }}" style="width:auto;" title="From">
@@ -570,30 +565,9 @@
     const dt = document.getElementById('dateTo');
     if (!qr) return;
     qr.addEventListener('change', function () {
-        const v = this.value;
-        if (!v) { df.value = ''; dt.value = ''; return; }
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        const fmt = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
-        if (v === '7d')  { const f = new Date(now); f.setDate(now.getDate()-7);  df.value = fmt(f); dt.value = fmt(now); }
-        else if (v === '30d') { const f = new Date(now); f.setDate(now.getDate()-30); df.value = fmt(f); dt.value = fmt(now); }
-        else if (v === '90d') { const f = new Date(now); f.setDate(now.getDate()-90); df.value = fmt(f); dt.value = fmt(now); }
-        else if (v === 'week') {
-            const day = now.getDay();
-            const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-            df.value = fmt(mon); dt.value = fmt(sun);
-        }
-        else if (v === 'lastweek') {
-            const day = now.getDay();
-            const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1) - 7);
-            const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-            df.value = fmt(mon); dt.value = fmt(sun);
-        }
-        else if (v === 'month') {
-            df.value = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-01';
-            dt.value = fmt(new Date(now.getFullYear(), now.getMonth()+1, 0));
-        }
+        const r = window.presetRange(this.value);
+        df.value = r.from;
+        dt.value = r.to;
     });
 })();
 
