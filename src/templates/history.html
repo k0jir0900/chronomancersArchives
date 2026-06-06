@@ -7,28 +7,16 @@
 .ca-rule-opt {
     padding: .35rem .75rem;
     cursor: pointer;
-    font-size: .875rem;
+    font-size:var(--fs-base);
     color: var(--text-primary);
 }
 .ca-rule-opt:hover { background: rgba(255,255,255,.06); }
 .ca-rule-opt[data-value=""] { color: var(--text-secondary); font-style: italic; }
-.ca-status-badge {
-    display: inline-block;
-    width: 82px;
-    padding: .2rem 0;
-    text-align: center;
-    border-radius: .2rem;
-    font-size: .78rem;
-    font-weight: 600;
-    line-height: 1.5;
-    color: #fff;
-    white-space: nowrap;
-}
 .ca-compare-btn {
     display: inline-flex;
     align-items: center;
     padding: .375rem .85rem;
-    font-size: .9rem;
+    font-size:var(--fs-base);
     font-weight: 500;
     color: #58a6ff;
     background: rgba(88,166,255,.08);
@@ -49,7 +37,7 @@
     padding: .25rem .75rem;
     border-radius: .375rem;
     text-align: center;
-    font-size: .8rem;
+    font-size:var(--fs-sm);
     font-weight: 600;
     color: #fff;
     line-height: 1.2;
@@ -127,7 +115,7 @@
         iDoc.open();
         iDoc.write('<!DOCTYPE html><html><head><style>' +
             '*{box-sizing:border-box;}' +
-            'body{background:#fff;color:#000;margin:0;font-family:"Segoe UI",Arial,sans-serif;}' +
+            'body{background:#fff;color:#000;margin:0;font-family:"Inter","Segoe UI",Arial,sans-serif;}' +
             '</style></head><body>' + src.outerHTML.replace('display:none','display:block') + '</body></html>');
         iDoc.close();
 
@@ -218,7 +206,7 @@
 <!-- Hidden PDF Report -->
 {% set sev_pdf = {'critical':'#963838','high':'#a8651d','medium':'#8a6d00','low':'#2a5d8f','informative':'#5a6168'} %}
 {% set act_pdf = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
-<div id="report-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Segoe UI',sans-serif;">
+<div id="report-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Inter','Segoe UI',Arial,sans-serif;">
     <div style="border-bottom:3px solid #3d4d80;padding-bottom:14px;margin-bottom:20px;text-align:center;">
         <h1 style="margin:0;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3d4d80;white-space:nowrap;overflow:hidden;">{{ summary.rule_name }}</h1>
     </div>
@@ -307,7 +295,7 @@
                 </div>
                 <div style="background:#fafbfd;padding:8px;border-radius:3px;border:1px solid #e0e0e0;">
                     <div style="font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#3d4d80;margin-bottom:3px;font-weight:600;">CDU</div>
-                    <pre style="margin:0;white-space:pre-wrap;font-family:'Courier New',monospace;font-size:8.5px;color:#000;line-height:1.25;">{{ log.rule_content }}</pre>
+                    <pre style="margin:0;white-space:pre-wrap;font-family:'Consolas','Monaco','Courier New',monospace;font-size:8.5px;color:#000;line-height:1.25;">{{ log.rule_content }}</pre>
                 </div>
             </div>
         </div>
@@ -401,7 +389,7 @@
                         <span class="text-secondary">{{ m.technique_name }}</span>
                     {% endif %}
                     {% if m.tactic %}
-                    <span class="badge ms-1" style="background:rgba(99,102,241,.18);color:#a5b4fc;font-size:.7rem;font-weight:500;">{{ m.tactic.split(',')[0] | title }}</span>
+                    <span class="badge ms-1" style="background:rgba(99,102,241,.18);color:#a5b4fc;font-size:var(--fs-xs);font-weight:500;">{{ m.tactic.split(',')[0] | title }}</span>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -418,10 +406,10 @@
                 <input type="hidden" name="record_id" value="{{ latest_id }}">
                 <input type="hidden" name="redirect_url" value="{{ request.url }}">
                 <div class="mitre-add-row mb-2">
-                    <select id="edit-mitre-technique" class="form-select ca-input mitre-select" style="font-size:.875rem;">
+                    <select id="edit-mitre-technique" class="form-select ca-input mitre-select" style="font-size:var(--fs-base);">
                         <option value="">Loading techniques...</option>
                     </select>
-                    <select id="edit-mitre-subtechnique" class="form-select ca-input mitre-select" disabled style="font-size:.875rem;">
+                    <select id="edit-mitre-subtechnique" class="form-select ca-input mitre-select" disabled style="font-size:var(--fs-base);">
                         <option value="">Select technique first</option>
                     </select>
                     <button type="button" class="btn btn-outline-secondary mitre-add-btn" id="edit-mitre-add-btn" disabled>
@@ -455,7 +443,7 @@
             <div class="d-flex flex-wrap gap-2">
                 {% for t in tags_info %}
                 <div class="mitre-tag">
-                    <span class="text-secondary text-uppercase" style="font-size:.7rem;letter-spacing:.5px;">{{ t.category | replace('_', ' ') }}</span>
+                    <span class="text-secondary text-uppercase" style="font-size:var(--fs-xs);letter-spacing:.5px;">{{ t.category | replace('_', ' ') }}</span>
                     <span class="fw-semibold">{{ t.value }}</span>
                 </div>
                 {% endfor %}
@@ -472,11 +460,11 @@
                 <input type="hidden" name="record_id" value="{{ latest_id }}">
                 <input type="hidden" name="redirect_url" value="{{ request.url }}">
                 <div class="mitre-add-row mb-2">
-                    <select id="edit-tag-category" class="form-select ca-input mitre-select" style="font-size:.875rem;">
+                    <select id="edit-tag-category" class="form-select ca-input mitre-select" style="font-size:var(--fs-base);">
                         <option value="">Loading categories...</option>
                     </select>
                     <input id="edit-tag-value" class="form-control ca-input mitre-select" list="edit-tag-value-list"
-                           placeholder="Select or type a new tag" autocomplete="off" disabled style="font-size:.875rem;">
+                           placeholder="Select or type a new tag" autocomplete="off" disabled style="font-size:var(--fs-base);">
                     <datalist id="edit-tag-value-list"></datalist>
                     <button type="button" class="btn btn-outline-secondary mitre-add-btn" id="edit-tag-add-btn" disabled>
                         <i class="bi bi-plus-lg"></i> Add
@@ -530,7 +518,7 @@
 
 {% else %}
 <div class="text-center mt-5 text-danger">
-    <i class="bi bi-exclamation-circle-fill" style="font-size:3rem;"></i>
+    <i class="bi bi-exclamation-circle-fill" style="font-size:var(--fs-3xl);"></i>
     <p class="mt-3 fs-5">No records found for the given search.</p>
 </div>
 {% endif %}
@@ -604,13 +592,13 @@
     border: 1px solid rgba(99, 102, 241, 0.3);
     border-radius: .375rem;
     padding: .35rem .75rem;
-    font-size: .8rem;
+    font-size:var(--fs-sm);
     color: var(--text-primary);
 }
 .mitre-tag-del {
     background: none; border: none; padding: 0; margin-left: .125rem;
     color: var(--text-muted); cursor: pointer; line-height: 1;
-    display: flex; align-items: center; font-size: .9rem;
+    display: flex; align-items: center; font-size:var(--fs-base);
 }
 .mitre-tag-del:hover { color: #ef4444; }
 .mitre-add-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
@@ -622,7 +610,7 @@
     padding: .55rem .9rem;
     vertical-align: middle;
     border-bottom: 1px solid var(--border);
-    font-size: .85rem;
+    font-size:var(--fs-base);
 }
 .ca-summary-table tr:last-child th, .ca-summary-table tr:last-child td { border-bottom: 0; }
 .ca-summary-table .ca-sum-key {
@@ -631,7 +619,7 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: .5px;
-    font-size: .72rem;
+    font-size:var(--fs-xs);
     background: rgba(255,255,255,.02);
 }
 .ca-summary-table .ca-sum-val {

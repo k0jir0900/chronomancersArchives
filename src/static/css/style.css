@@ -3,27 +3,57 @@
    ============================================= */
 
 :root {
+    /* Layout */
     --sidebar-w: 260px;
     --topbar-h: 60px;
+
+    /* Surfaces */
     --bg-body: #0b0e14;
     --bg-sidebar: #101420;
     --bg-card: #151a28;
     --bg-topbar: #10141f;
     --border: #1e2536;
+
+    /* Text */
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* Semantic */
     --accent: #6366f1;
     --accent-hover: #818cf8;
     --accent-glow: rgba(99, 102, 241, .25);
-    --text-primary: #e2e8f0;
-    --text-muted: #64748b;
     --success: #22c55e;
     --danger: #ef4444;
     --warning: #f59e0b;
+    --info: #58a6ff;
+
+    /* Typography */
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+    --fs-xs: .72rem;
+    --fs-sm: .8rem;
+    --fs-base: .875rem;
+    --fs-md: 1rem;
+    --fs-lg: 1.25rem;
+    --fs-xl: 1.5rem;
+    --fs-2xl: 2rem;
+    --fs-3xl: 3rem;
+
+    /* Spacing scale */
+    --space-1: .25rem;
+    --space-2: .5rem;
+    --space-3: .75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-sans);
+    font-size: var(--fs-base);
     background: var(--bg-body);
     color: var(--text-primary);
     overflow-x: hidden;
@@ -209,21 +239,37 @@ body {
     --bs-table-hover-bg: rgba(255,255,255,.03);
     margin-bottom: 0;
 }
+/* Uniform cell spacing/typography for every table variant (overrides Bootstrap
+   table-sm and per-page differences). */
+.table th,
+.table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom-color: var(--border);
+}
 .table th {
-    font-size: .75rem;
+    font-size: var(--fs-xs);
     font-weight: normal;
     text-transform: uppercase;
     letter-spacing: .05em;
     color: var(--text-muted);
-    border-bottom-color: var(--border);
-    padding-top: .4rem;
-    padding-bottom: .4rem;
 }
 .table td {
-    border-bottom-color: var(--border);
+    font-size: var(--fs-sm);
     vertical-align: middle;
-    padding-top: .35rem;
-    padding-bottom: .35rem;
+}
+
+/* Status pill used in listing tables (Details, Search). */
+.ca-status-badge {
+    display: inline-block;
+    width: 82px;
+    padding: .2rem 0;
+    text-align: center;
+    border-radius: .2rem;
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    line-height: 1.5;
+    color: #fff;
+    white-space: nowrap;
 }
 
 /* ---- Dropdown ---- */
@@ -382,7 +428,7 @@ input:checked + .slider::before { transform: translateX(22px); background: #fff;
 }
 .ca-content-box pre { margin: 0; overflow-x: auto; }
 .ca-content-box code {
-    font-family: 'Consolas','Monaco','Courier New',monospace;
+    font-family: var(--font-mono);
     color: #a5d6ff;
     font-size: .85rem;
     line-height: 1.5;
@@ -418,7 +464,7 @@ input:checked + .slider::before { transform: translateX(22px); background: #fff;
 
 /* Code textarea */
 .ca-code-font {
-    font-family: 'Consolas','Monaco',monospace;
+    font-family: var(--font-mono);
     font-size: .875rem;
 }
 

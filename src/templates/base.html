@@ -57,7 +57,7 @@
                 {% if current_user.profile_pic %}
                 <img src="{{ url_for('static', filename='uploads/' + current_user.profile_pic) }}" alt="avatar" class="topbar-avatar">
                 {% else %}
-                <div class="topbar-avatar ca-avatar" style="width:32px;height:32px;font-size:.85rem;">
+                <div class="topbar-avatar ca-avatar" style="width:32px;height:32px;font-size:var(--fs-base);">
                     {{ (current_user.full_name or current_user.username)[0].upper() }}
                 </div>
                 {% endif %}

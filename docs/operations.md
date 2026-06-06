@@ -2,30 +2,16 @@
 
 Runbook for running, deploying, and operating Chronomancers Archives.
 
-## Environments and compose files
-
-Three layers, merged by `docker compose`:
-
-- `docker-compose.yml` - base definition (no host bind mount, DB port not published).
-- `docker-compose.override.yml` - local development. Auto-merged. NOT versioned.
-  Bind-mounts the source for live edits and publishes MySQL `3306` for local tools.
-- `docker-compose.prod.yml` - production. Applied explicitly. No bind mount,
-  secure cookies, resource limits.
-
 ## Running
 
-Development (uses the override automatically):
+A single `docker-compose.yml` defines the stack (no host bind mount, MySQL not
+published). Behavior for production vs. local is driven by `.env` (see Security
+flags below).
 
 ```bash
-make up           # docker compose up -d --build
-make logs         # follow the app logs
-make down
-```
-
-Production:
-
-```bash
-make prod         # docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose up -d --build              # build and start
+docker compose logs -f chronomancers_archives   # follow the app logs
+docker compose down                       # stop
 ```
 
 The portal listens on `http://localhost:5001`.
@@ -75,11 +61,10 @@ files* (`.sql`), not application logs.
 
 ## Security flags
 
-- `SESSION_COOKIE_SECURE` defaults to `false`. Set it to `true` (the prod
-  compose does this) when serving over HTTPS so session cookies are only sent
-  on secure connections.
-- `TRUST_PROXY` defaults to `false`. Set it to `true` (the prod compose does
-  this) only when running behind a trusted reverse proxy. It enables `ProxyFix`
+- `SESSION_COOKIE_SECURE` defaults to `false`. Set it to `true` in `.env` when
+  serving over HTTPS so session cookies are only sent on secure connections.
+- `TRUST_PROXY` defaults to `false`. Set it to `true` in `.env` only when
+  running behind a trusted reverse proxy. It enables `ProxyFix`
   so `X-Forwarded-For`/`-Proto` are honored and the rate limiter and audit log
   key on the real client IP instead of the proxy IP. Leave it `false` when the
   app is directly reachable, or clients could spoof their address.

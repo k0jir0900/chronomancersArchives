@@ -49,6 +49,9 @@ services:
       # files are root-owned and not writable by the container user.
       - backups_data:/app/src/backups
       - uploads_data:/app/src/static/uploads
+      # TLS cert in a host folder so it can be inspected and replaced with your
+      # own (drop cert.pem + key.pem in ./certs). Self-signed default lives here too.
+      - ./certs:/app/certs
     ports:
       - "5001:5001"
     environment:

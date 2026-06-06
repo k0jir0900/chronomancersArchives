@@ -4,9 +4,6 @@
 .dockerignore
 Dockerfile
 docker-compose.yml
-docker-compose.override.yml
-docker-compose.prod.yml
-Makefile
 
 # Secrets and runtime-generated config
 .env
@@ -19,9 +16,10 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# Runtime data (provided by volumes)
+# Runtime data (provided by volumes / host mounts)
 src/backups/
 src/static/uploads/
+certs/
 *.log
 
 # DB init scripts: mounted into the mysql container, not needed in the app image

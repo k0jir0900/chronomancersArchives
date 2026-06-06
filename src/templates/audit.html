@@ -55,7 +55,7 @@
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0" style="font-size:.85rem;">
+            <table class="table table-hover mb-0" style="font-size:var(--fs-base);">
                 <thead>
                     <tr>
                         <th style="width:160px;">Date</th>
@@ -107,12 +107,12 @@
                         <td class="text-secondary small">
                             {% if action in ('login_success','login_failed','key_generated','key_regenerated','key_deleted') %}
                             {% if log.params and log.params != '{}' %}
-                            <code style="font-size:.75rem;">{{ log.params }}</code>
+                            <code style="font-size:var(--fs-sm);">{{ log.params }}</code>
                             {% else %}-{% endif %}
                             {% else %}
                             <span class="font-monospace">{{ log.endpoint or '-' }}</span>
                             {% if log.params and log.params != '{}' %}
-                            <code class="ms-1" style="font-size:.75rem;">{{ log.params }}</code>
+                            <code class="ms-1" style="font-size:var(--fs-sm);">{{ log.params }}</code>
                             {% endif %}
                             {% endif %}
                         </td>

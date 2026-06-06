@@ -59,7 +59,7 @@
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0" style="font-size:.875rem;">
+            <table class="table table-hover mb-0" style="font-size:var(--fs-base);">
                 <thead>
                     <tr>
                         <th>User</th>
@@ -75,7 +75,7 @@
                     <tr>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="ca-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0;">
+                                <div class="ca-avatar" style="width:32px;height:32px;font-size:var(--fs-base);flex-shrink:0;">
                                     {% if user.profile_pic %}
                                     <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt=""
                                         style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
@@ -109,10 +109,10 @@
                         <td>
                             {% if user.key_value %}
                             <div class="d-flex flex-column gap-0">
-                                <code class="text-secondary" style="font-size:.7rem;">
+                                <code class="text-secondary" style="font-size:var(--fs-xs);">
                                     {{ user.key_prefix }}••••
                                 </code>
-                                <span class="text-secondary" style="font-size:.7rem;">
+                                <span class="text-secondary" style="font-size:var(--fs-xs);">
                                     Last used: {{ user.last_used_at.strftime('%Y-%m-%d') if user.last_used_at else 'Never' }}
                                 </span>
                             </div>

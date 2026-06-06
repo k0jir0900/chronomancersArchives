@@ -3,14 +3,17 @@
 *.pyo
 __pycache__/
 
-# Environment + local compose override
+# Environment
 .env
-docker-compose.override.yml
 
 # Runtime (under src/)
 src/backup.conf
 src/backups/
 src/static/uploads/
+
+# TLS cert/key (host folder, never versioned). Keep the folder via .gitkeep.
+certs/*
+!certs/.gitkeep
 
 # Logs
 *.log

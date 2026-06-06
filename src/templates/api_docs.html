@@ -12,10 +12,10 @@
             <a class="ca-collapse-toggle text-decoration-none ca-doc-nav d-flex align-items-center justify-content-between"
                data-bs-toggle="collapse" href="#api-nav-group" aria-expanded="true">
                 <span style="font-weight:600;color:var(--text-primary);">API</span>
-                <i class="bi bi-chevron-down ca-nav-chevron" style="font-size:.75rem;"></i>
+                <i class="bi bi-chevron-down ca-nav-chevron" style="font-size:var(--fs-sm);"></i>
             </a>
             <div class="collapse show" id="api-nav-group">
-                <nav id="doc-nav" class="d-flex flex-column gap-1 ms-2 mt-1" style="font-size:.85rem;">
+                <nav id="doc-nav" class="d-flex flex-column gap-1 ms-2 mt-1" style="font-size:var(--fs-base);">
                     <a href="#authentication" class="text-decoration-none ca-doc-nav" data-section="authentication">Authentication</a>
                     <a href="#base-url" class="text-decoration-none ca-doc-nav" data-section="base-url">Base URL</a>
                     <a href="#endpoints" class="text-decoration-none ca-doc-nav" data-section="endpoints">Endpoints</a>
@@ -36,8 +36,8 @@
              aria-expanded="true" style="cursor:pointer;border-radius:.75rem .75rem 0 0;margin-bottom:0 !important;">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-code-slash"></i>
-                <span style="font-size:1rem;font-weight:600;">API</span>
-                <i class="bi bi-chevron-down ca-nav-chevron ms-auto" style="font-size:.85rem;color:var(--text-muted);"></i>
+                <span style="font-size:var(--fs-md);font-weight:600;">API</span>
+                <i class="bi bi-chevron-down ca-nav-chevron ms-auto" style="font-size:var(--fs-base);color:var(--text-muted);"></i>
             </div>
         </div>
 
@@ -48,7 +48,7 @@
                 <h4 class="ca-doc-title"><i class="bi bi-key-fill me-2"></i>Authentication</h4>
                 <p class="text-secondary">All API requests require an API key passed in the request header.</p>
                 <div class="ca-doc-table mb-3">
-                    <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <table class="table table-sm mb-0" style="font-size:var(--fs-base);">
                         <thead><tr><th>Header</th><th>Value</th><th>Required</th></tr></thead>
                         <tbody>
                             <tr>
@@ -87,7 +87,7 @@
 
                     <h6 class="ca-doc-subtitle" id="parameters">Query Parameters</h6>
                     <div class="ca-doc-table mb-4">
-                        <table class="table table-sm mb-0" style="font-size:.875rem;">
+                        <table class="table table-sm mb-0" style="font-size:var(--fs-base);">
                             <thead>
                                 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
                             </thead>
@@ -114,7 +114,7 @@
                         </table>
                     </div>
 
-                    <h6 class="ca-doc-subtitle" id="response">Response <span class="badge ms-1" style="background:#238636;font-size:.7rem;">200 OK</span></h6>
+                    <h6 class="ca-doc-subtitle" id="response">Response <span class="badge ms-1" style="background:#238636;font-size:var(--fs-xs);">200 OK</span></h6>
                     <pre class="ca-code-block">{
   "total":  412,
   "page":   1,
@@ -129,7 +129,7 @@
             <div class="ca-doc-section ca-doc-inner" id="schema">
                 <h4 class="ca-doc-title"><i class="bi bi-braces me-2"></i>CDU Object Schema</h4>
                 <div class="ca-doc-table">
-                    <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <table class="table table-sm mb-0" style="font-size:var(--fs-base);">
                         <thead>
                             <tr><th>Field</th><th>Type</th><th>Nullable</th><th>Description</th></tr>
                         </thead>
@@ -204,7 +204,7 @@ for cdu in data["data"]:
             <div class="ca-doc-section ca-doc-inner" id="errors" style="margin-bottom:0;border-radius:0;">
                 <h4 class="ca-doc-title"><i class="bi bi-exclamation-triangle me-2"></i>Error Codes</h4>
                 <div class="ca-doc-table">
-                    <table class="table table-sm mb-0" style="font-size:.875rem;">
+                    <table class="table table-sm mb-0" style="font-size:var(--fs-base);">
                         <thead><tr><th>Code</th><th>Meaning</th><th>Body</th></tr></thead>
                         <tbody>
                             <tr>
@@ -262,14 +262,14 @@ for cdu in data["data"]:
 }
 .ca-doc-inner:last-child { border-bottom: none; }
 .ca-doc-title {
-    font-size: 1rem;
+    font-size:var(--fs-md);
     font-weight: 600;
     margin-bottom: 1rem;
     padding-bottom: .5rem;
     border-bottom: 1px solid var(--border);
 }
 .ca-doc-subtitle {
-    font-size: .8rem;
+    font-size:var(--fs-sm);
     text-transform: uppercase;
     letter-spacing: .5px;
     color: var(--text-muted);
@@ -282,24 +282,24 @@ for cdu in data["data"]:
 .ca-nav-chevron { transition: transform .2s ease; }
 .ca-collapse-toggle[aria-expanded="false"] .ca-nav-chevron { transform: rotate(-90deg); }
 .ca-method {
-    font-size: .75rem;
+    font-size:var(--fs-sm);
     font-weight: 700;
     padding: 3px 10px;
     border-radius: 4px;
     letter-spacing: .5px;
 }
 .ca-method-get { background: rgba(35,134,54,.2); color: #3fb950; border: 1px solid rgba(35,134,54,.4); }
-.ca-endpoint-path { font-size: .95rem; color: var(--text-primary); }
-.ca-type { font-size: .75rem; color: #a5b4fc; }
+.ca-endpoint-path { font-size:var(--fs-base); color: var(--text-primary); }
+.ca-type { font-size:var(--fs-sm); color: #a5b4fc; }
 .ca-doc-table { border: 1px solid var(--border); border-radius: .5rem; overflow: hidden; }
 .ca-doc-table .table { margin: 0; }
-.ca-doc-table thead th { background: var(--bg-secondary); font-size: .75rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.ca-doc-table thead th { background: var(--bg-secondary); font-size:var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .ca-code-block {
     background: var(--bg-secondary, #161b22);
     border: 1px solid var(--border);
     border-radius: .5rem;
     padding: 1rem;
-    font-size: .8rem;
+    font-size:var(--fs-sm);
     color: #e6edf3;
     white-space: pre;
     overflow-x: auto;
@@ -310,7 +310,7 @@ for cdu in data["data"]:
     border: 1px solid rgba(31,111,235,.3);
     border-radius: .5rem;
     padding: .75rem 1rem;
-    font-size: .875rem;
+    font-size:var(--fs-base);
     color: var(--text-secondary);
 }
 .ca-endpoint-block {

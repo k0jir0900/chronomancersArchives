@@ -1,11 +1,12 @@
 import os
 import secrets
 import functools
+import logging
 import hashlib
 import json
 import atexit
 import yaml
-from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify, g
+from flask import Flask, render_template, request, redirect, flash, session, url_for, send_file, jsonify, g, has_app_context
 import mysql.connector
 import mysql.connector.pooling
 from datetime import datetime, timedelta
@@ -91,10 +92,32 @@ def _get_pool():
 
 def get_db_connection():
     try:
-        return _get_pool().get_connection()
+        conn = _get_pool().get_connection()
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         return None
+    # Track per-request connections so the teardown hook always returns them to
+    # the pool, even if a route forgets to close or the client aborts the request
+    # (a self-signed cert makes browsers drop connections mid-request). Background
+    # threads run without an app context and manage their own close().
+    if has_app_context():
+        g.setdefault('_db_conns', []).append(conn)
+    return conn
+
+
+@app.teardown_request
+def _release_db_connections(exc=None):
+    # Safety net against leaks: return pooled connections a route left open
+    # (forgotten close or aborted request). Skip ones already returned -- a
+    # PooledMySQLConnection sets _cnx=None on close(), and closing it twice would
+    # make the pool spawn a brand-new connection (add_connection(None)).
+    for conn in g.pop('_db_conns', []):
+        if getattr(conn, '_cnx', None) is None:
+            continue
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 MITRE_CONFIG_FILE = os.path.join(BASE_DIR, 'mitre.conf')
 
@@ -1710,6 +1733,12 @@ def profile():
 @app.route('/health')
 def health():
     return "OK", 200
+
+class _HealthAccessFilter(logging.Filter):
+    def filter(self, record):
+        return '/health ' not in record.getMessage()
+
+logging.getLogger('gunicorn.access').addFilter(_HealthAccessFilter())
 
 try:
     with app.app_context():

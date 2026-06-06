@@ -24,12 +24,11 @@ Notes:
 ### 2. Build and Start
 
 ```bash
-docker compose up -d --build   # or: make up
+docker compose up -d --build
 ```
 
-The portal runs at `http://localhost:5001`. For production, dev/prod compose
-layering, gunicorn tuning, logging, and security flags, see
-[docs/operations.md](docs/operations.md).
+The portal runs at `http://localhost:5001`. For production, gunicorn tuning,
+logging, and security flags, see [docs/operations.md](docs/operations.md).
 
 ### 3. Default Credentials
 
@@ -67,10 +66,7 @@ docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$
 ├── docs/                 # operational documentation
 │   └── operations.md
 ├── Dockerfile            # multi-stage build, runs as a non-root user
-├── docker-compose.yml          # base
-├── docker-compose.override.yml # local dev (not versioned)
-├── docker-compose.prod.yml     # production
-├── Makefile              # build/up/down/logs/prod shortcuts
+├── docker-compose.yml    # service definition
 ├── requirements.txt
 └── .env.example
 ```

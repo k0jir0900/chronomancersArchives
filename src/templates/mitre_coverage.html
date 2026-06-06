@@ -11,7 +11,7 @@
 .mitre-tactic-header {
     background: #1c2a3a;
     color: #58a6ff;
-    font-size: .65rem;
+    font-size:var(--fs-xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -29,7 +29,7 @@
     border: 1px solid #21262d;
     border-top: none;
     padding: .3rem .4rem;
-    font-size: .67rem;
+    font-size:var(--fs-xs);
     position: relative;
     min-height: 36px;
 }
@@ -39,7 +39,7 @@
 .mitre-tech.lit { background: #12261e; border-color: #238636; }
 .mitre-tech.lit.has-subs:hover { background: #152d24; }
 
-.mitre-tech-id { color: #6e7681; font-size: .58rem; line-height: 1; margin-bottom: 2px; }
+.mitre-tech-id { color: #6e7681; font-size:var(--fs-xs); line-height: 1; margin-bottom: 2px; }
 .mitre-tech-name { color: #c9d1d9; line-height: 1.25; word-break: break-word; }
 .mitre-tech.lit .mitre-tech-id { color: #56d364; }
 .mitre-tech.lit .mitre-tech-name { color: #3fb950; }
@@ -49,7 +49,7 @@
     top: 3px; right: 4px;
     background: #238636;
     color: #fff;
-    font-size: .56rem;
+    font-size:var(--fs-xs);
     font-weight: 700;
     padding: 0 4px;
     border-radius: 8px;
@@ -61,18 +61,18 @@
     border: 1px solid #21262d;
     border-top: none;
     padding: .25rem .4rem .25rem .75rem;
-    font-size: .62rem;
+    font-size:var(--fs-xs);
     position: relative;
 }
 .mitre-sub.lit { background: #0e1e17; border-left: 2px solid #238636; }
-.mitre-sub .mitre-tech-id { font-size: .55rem; }
-.mitre-sub .mitre-tech-name { font-size: .62rem; }
+.mitre-sub .mitre-tech-id { font-size:var(--fs-xs); }
+.mitre-sub .mitre-tech-name { font-size:var(--fs-xs); }
 
 .mitre-expand-icon {
     position: absolute;
     bottom: 3px; right: 4px;
     color: #6e7681;
-    font-size: .6rem;
+    font-size:var(--fs-xs);
 }
 
 .mitre-sub-pill {
@@ -80,7 +80,7 @@
     align-items: center;
     gap: 2px;
     margin-top: 3px;
-    font-size: .55rem;
+    font-size:var(--fs-xs);
     color: #6e7681;
     background: rgba(110,118,129,.12);
     border-radius: 8px;
@@ -105,7 +105,7 @@
 }
 .mitre-stat-label {
     margin: 0;
-    font-size: .68rem;
+    font-size:var(--fs-xs);
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -113,11 +113,11 @@
 .mitre-stat-value {
     margin: 0;
     font-weight: 700;
-    font-size: .92rem;
+    font-size:var(--fs-base);
     line-height: 1;
 }
 .mitre-stat-total {
-    font-size: .72rem;
+    font-size:var(--fs-xs);
     font-weight: 400;
     color: var(--text-muted);
     margin-left: .2rem;
@@ -131,10 +131,10 @@
 .mitre-stat-btn:hover { border-color: #58a6ff; }
 .mitre-stat-btn.active { border-color: #238636; background: #12261e; }
 .mitre-stat-btn.active .mitre-stat-value { color: #3fb950; }
-.mitre-stat-icon { font-size: .75rem; color: var(--text-muted); }
+.mitre-stat-icon { font-size:var(--fs-sm); color: var(--text-muted); }
 .mitre-stat-btn.active .mitre-stat-icon { color: #3fb950; }
 .mitre-company-select {
-    font-size: .8rem;
+    font-size:var(--fs-sm);
     font-weight: 500;
     min-width: 130px;
     max-width: 180px;
@@ -171,7 +171,7 @@
     </div>
     <div class="mitre-stat-card">
         <p class="mitre-stat-label">Last sync</p>
-        <p class="mitre-stat-value" style="font-size:.8rem;font-weight:500;">{{ last_sync }}</p>
+        <p class="mitre-stat-value" style="font-size:var(--fs-sm);font-weight:500;">{{ last_sync }}</p>
     </div>
     <div class="ms-auto d-flex gap-2 align-items-center">
         <button id="btnSubs" class="mitre-stat-card mitre-stat-btn">

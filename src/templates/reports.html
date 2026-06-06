@@ -30,7 +30,7 @@
     background: rgba(99,102,241,.15);
     border-radius: .5rem;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.3rem; color: var(--accent);
+    font-size:var(--fs-lg); color: var(--accent);
     margin-bottom: 1rem;
     flex-shrink: 0;
 }
@@ -43,17 +43,17 @@
     margin-bottom: 1.25rem;
 }
 .rp-section-title {
-    font-size: .8rem; font-weight: 600; text-transform: uppercase;
+    font-size:var(--fs-sm); font-weight: 600; text-transform: uppercase;
     letter-spacing: .5px; color: var(--text-muted);
     margin-bottom: 1rem; padding-bottom: .5rem;
     border-bottom: 1px solid var(--border);
 }
 .rp-stat { text-align: center; padding: .75rem; }
-.rp-stat-value { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
-.rp-stat-label { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; text-transform: capitalize; }
-.rp-table { font-size: .875rem; }
-.rp-table th { font-size: .68rem; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .5rem !important; line-height: 1.2; }
-.rp-badge { display:inline-block; padding:2px 8px; border-radius:3px; font-size:.75rem; font-weight:600; }
+.rp-stat-value { font-size:var(--fs-2xl); font-weight: 700; color: var(--text-primary); line-height: 1; }
+.rp-stat-label { font-size:var(--fs-sm); color: var(--text-muted); margin-top: .25rem; text-transform: capitalize; }
+.rp-table { font-size:var(--fs-base); }
+.rp-table th { font-size:var(--fs-xs); text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .5rem !important; line-height: 1.2; }
+.rp-badge { display:inline-block; padding:2px 8px; border-radius:3px; font-size:var(--fs-sm); font-weight:600; }
 .sev-critical    { background:#da3633;color:#fff; }
 .sev-high        { background:#f0883e;color:#fff; }
 .sev-medium      { background:#d29922;color:#fff; }
@@ -71,7 +71,7 @@
 }
 .rp-grid .rp-section { margin-bottom: 0; width: 100%; display: block; }
 .rp-table-compact td, .rp-table-compact th { padding-top: 3px !important; padding-bottom: 3px !important; line-height: 1.35; }
-.rp-selector-table th { font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .85rem !important; line-height: 1.2; }
+.rp-selector-table th { font-size:var(--fs-xs); text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: .3rem .85rem !important; line-height: 1.2; }
 .rp-selector-table td { padding: .55rem .85rem !important; border-bottom: 1px solid var(--border); }
 .rp-selector-table tbody tr:last-child td { border-bottom: 0; }
 .rp-selector-table tbody tr:hover { background: rgba(99,102,241,.05); }
@@ -96,9 +96,9 @@
         <tbody>
             {% for cfg in configs %}
             <tr>
-                <td><i class="bi {{ cfg.icon or 'bi-file-bar-graph' }}" style="color:var(--accent);font-size:1.4rem;"></i></td>
-                <td class="fw-semibold" style="font-size:1rem;">{{ cfg.name }}</td>
-                <td class="text-secondary" style="font-size:.92rem;">{{ cfg.description }}</td>
+                <td><i class="bi {{ cfg.icon or 'bi-file-bar-graph' }}" style="color:var(--accent);font-size:var(--fs-lg);"></i></td>
+                <td class="fw-semibold" style="font-size:var(--fs-md);">{{ cfg.name }}</td>
+                <td class="text-secondary" style="font-size:var(--fs-base);">{{ cfg.description }}</td>
                 <td class="text-end">
                     <a href="/reports?id={{ cfg.id }}&run=1" class="btn btn-sm btn-primary">
                         <i class="bi bi-box-arrow-in-right me-1"></i>Open
@@ -150,12 +150,12 @@
 <div id="report-content">
     <!-- Report header -->
     <div class="d-flex align-items-center gap-2 mb-3">
-        <div class="rp-card-icon" style="width:32px;height:32px;font-size:1rem;margin-bottom:0;flex-shrink:0;">
+        <div class="rp-card-icon" style="width:32px;height:32px;font-size:var(--fs-md);margin-bottom:0;flex-shrink:0;">
             <i class="bi {{ selected.icon or 'bi-file-bar-graph' }}"></i>
         </div>
         <div>
-            <h6 class="mb-0 fw-semibold" style="font-size:1rem;line-height:1.1;">{{ report_title }}</h6>
-            <span class="text-secondary" style="font-size:.72rem;">
+            <h6 class="mb-0 fw-semibold" style="font-size:var(--fs-md);line-height:1.1;">{{ report_title }}</h6>
+            <span class="text-secondary" style="font-size:var(--fs-xs);">
                 {{ selected.name }}
                 {% if date_from %}&nbsp;·&nbsp;{{ date_from }}{% endif %}
                 {% if date_to %} – {{ date_to }}{% endif %}
@@ -283,10 +283,10 @@
                         <p class="stat-label mb-1">Most Active CDU</p>
                         <div class="d-flex align-items-baseline gap-2 flex-wrap" style="min-height:1.4rem;">
                             {% if has_top %}
-                            <span style="font-size:1.4rem;font-weight:700;color:#a371f7;line-height:1;">{{ row.top_rule_count }}</span>
-                            <span class="text-secondary" style="font-size:.82rem;">actions</span>
+                            <span style="font-size:var(--fs-lg);font-weight:700;color:#a371f7;line-height:1;">{{ row.top_rule_count }}</span>
+                            <span class="text-secondary" style="font-size:var(--fs-sm);">actions</span>
                             <span class="text-secondary">|</span>
-                            <span class="fw-medium" style="font-size:.95rem;" title="{{ cdu_name }}">{{ cdu_name }}</span>
+                            <span class="fw-medium" style="font-size:var(--fs-base);" title="{{ cdu_name }}">{{ cdu_name }}</span>
                             {% endif %}
                         </div>
                     </div>
@@ -307,11 +307,11 @@
             <tbody>
                 {% for row in sec.rows %}
                 <tr>
-                    <td class="text-secondary" style="font-size:.75rem;">{{ loop.index }}</td>
+                    <td class="text-secondary" style="font-size:var(--fs-sm);">{{ loop.index }}</td>
                     {% for col, val in row.items() %}
                     <td style="{% if col == 'description' %}min-width:200px;max-width:360px;word-break:break-word;white-space:normal;{% elif col == 'modified_by' %}min-width:130px;white-space:normal;{% endif %}">
                         {%- if col == 'actions' -%}
-                            {% for act in (val or '') | string | split(',') %}{% if act.strip() %}<span class="rp-badge act-{{ act.strip() | lower }}" style="font-size:.7rem;margin-right:2px;">{{ act.strip() | title }}</span>{% endif %}{% endfor %}
+                            {% for act in (val or '') | string | split(',') %}{% if act.strip() %}<span class="rp-badge act-{{ act.strip() | lower }}" style="font-size:var(--fs-xs);margin-right:2px;">{{ act.strip() | title }}</span>{% endif %}{% endfor %}
                         {%- else -%}{{ cell(col, val) }}{%- endif -%}
                     </td>
                     {% endfor %}
@@ -335,7 +335,7 @@
                     <tbody>
                         {% for row in sec.rows %}
                         <tr>
-                            <td><code style="font-size:.78rem;">{{ row.id }}</code></td>
+                            <td><code style="font-size:var(--fs-sm);">{{ row.id }}</code></td>
                             <td>{{ row.name or '—' }}</td>
                             <td class="text-secondary small">{{ row.tactic | title if row.tactic else '—' }}</td>
                             <td class="text-end fw-semibold">{{ row.count }}</td>
@@ -398,7 +398,7 @@
 {%- else -%}{{ val if val is not none else '—' }}{%- endif -%}
 {% endmacro %}
 
-<div id="report-pdf-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Segoe UI',Arial,sans-serif;">
+<div id="report-pdf-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Inter','Segoe UI',Arial,sans-serif;">
 
     <div style="border-bottom:3px solid #3d4d80;padding-bottom:18px;margin-bottom:24px;">
         <h1 style="margin:0 0 4px;font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3d4d80;">{{ report_title }}</h1>
@@ -644,7 +644,7 @@ async function exportReportPDF() {
     iDoc.open();
     iDoc.write('<!DOCTYPE html><html><head><style>' +
         '*{box-sizing:border-box;}' +
-        'body{margin:0;background:#fff;color:#000;font-family:"Segoe UI",Arial,sans-serif;}' +
+        'body{margin:0;background:#fff;color:#000;font-family:"Inter","Segoe UI",Arial,sans-serif;}' +
         '</style></head><body>' + src.outerHTML.replace('display:none', 'display:block') + '</body></html>');
     iDoc.close();
 

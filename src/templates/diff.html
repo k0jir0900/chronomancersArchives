@@ -7,7 +7,7 @@
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 <style>
-.ca-rule-opt { padding:.35rem .75rem; cursor:pointer; font-size:.875rem; color:var(--text-primary); }
+.ca-rule-opt { padding:.35rem .75rem; cursor:pointer; font-size:var(--fs-base); color:var(--text-primary); }
 .ca-rule-opt:hover { background:rgba(255,255,255,.06); }
 .ca-rule-opt[data-value=""] { color:var(--text-secondary); font-style:italic; }
 </style>
@@ -81,7 +81,7 @@
 
 <style>
     .d2h-file-header { display: none; }
-    .d2h-code-line { font-family: 'Consolas','Monaco',monospace; font-size: 13px; line-height: 1.5; }
+    .d2h-code-line { font-family: var(--font-mono); font-size: 13px; line-height: 1.5; }
     .d2h-file-side-diff { width: 50%; }
 
     .d2h-file-wrapper { background: #161b22 !important; }
@@ -122,12 +122,12 @@
 
 {% elif not selected_rule %}
 <div class="text-center mt-5 text-secondary">
-    <i class="bi bi-layout-split" style="font-size:3rem;"></i>
+    <i class="bi bi-layout-split" style="font-size:var(--fs-3xl);"></i>
     <p class="mt-3 fs-5">Select a CDU to compare its historical versions.</p>
 </div>
 {% else %}
 <div class="text-center mt-5 text-secondary">
-    <i class="bi bi-info-circle" style="font-size:3rem;"></i>
+    <i class="bi bi-info-circle" style="font-size:var(--fs-3xl);"></i>
     <p class="mt-3 fs-5">Select two versions and click Compare.</p>
 </div>
 {% endif %}

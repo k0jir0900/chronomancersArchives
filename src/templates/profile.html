@@ -13,7 +13,7 @@
                     <img src="{{ url_for('static', filename='uploads/' + user.profile_pic) }}" alt="Profile Picture"
                         style="width:100%;height:100%;object-fit:cover;">
                     {% else %}
-                    <div class="ca-avatar" style="width:100%;height:100%;font-size:2.5rem;">
+                    <div class="ca-avatar" style="width:100%;height:100%;font-size:var(--fs-2xl);">
                         {{ user.username[0].upper() }}
                     </div>
                     {% endif %}
@@ -83,7 +83,7 @@
                 <div class="alert alert-success mb-3">
                     <p class="mb-1 small fw-semibold"><i class="bi bi-key-fill me-1"></i>Your new API key - copy it now, it won't be shown again:</p>
                     <div class="d-flex align-items-center gap-2">
-                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:.8rem;word-break:break-all;">{{ revealed_key }}</code>
+                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:var(--fs-sm);word-break:break-all;">{{ revealed_key }}</code>
                         <button class="btn btn-sm btn-outline-secondary" id="copy-key-btn" onclick="navigator.clipboard.writeText('{{ revealed_key }}');this.innerHTML='<i class=\'bi bi-check\'></i>'">
                             <i class="bi bi-clipboard"></i>
                         </button>
@@ -95,7 +95,7 @@
                 <div class="mb-3">
                     <label class="form-label text-secondary small">Current Key</label>
                     <div class="d-flex align-items-center gap-2">
-                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:.8rem;">
+                        <code class="flex-grow-1 p-2 rounded" style="background:var(--bg-input,#161b22);font-size:var(--fs-sm);">
                             {{ api_key.key_prefix }}••••
                         </code>
                     </div>
