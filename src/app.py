@@ -2183,6 +2183,10 @@ def restore_backup(filename):
         # A backup taken before a schema change restores the old schema; re-run
         # the migrations so newer columns/indexes are present again.
         init_db()
+        # The restore overwrites MITRE data with whatever the backup held; a
+        # backup may lack a domain (e.g. ICS), leaving it empty. Re-run the
+        # startup check so missing/stale domains sync in the background.
+        startup_mitre_check()
         # The restore replaces the users table, so the current session may point
         # to a user that no longer exists. Force a re-login without flashing a
         # message that reveals a restore happened.
