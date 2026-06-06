@@ -1738,7 +1738,14 @@ class _HealthAccessFilter(logging.Filter):
     def filter(self, record):
         return '/health ' not in record.getMessage()
 
+class _TLSHandshakeFilter(logging.Filter):
+    # Browsers rejecting the self-signed cert send a TLS alert; gunicorn logs it
+    # as an "Invalid request" warning. Drop only that noise, keep real ones.
+    def filter(self, record):
+        return 'ssl/tls alert' not in record.getMessage().lower()
+
 logging.getLogger('gunicorn.access').addFilter(_HealthAccessFilter())
+logging.getLogger('gunicorn.error').addFilter(_TLSHandshakeFilter())
 
 try:
     with app.app_context():
