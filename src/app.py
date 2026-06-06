@@ -2173,10 +2173,13 @@ def restore_backup(filename):
         return redirect(url_for('list_backups'))
     
     if restore_backup_custom(filepath):
+        # A backup taken before a schema change restores the old schema; re-run
+        # the migrations so newer columns/indexes are present again.
+        init_db()
         # The restore replaces the users table, so the current session may point
-        # to a user that no longer exists. Force a re-login.
+        # to a user that no longer exists. Force a re-login without flashing a
+        # message that reveals a restore happened.
         session.clear()
-        flash(f"Database restored from '{filename}'. Please log in again.", "success")
         return redirect(url_for('login'))
 
     flash("Error restoring database.", "error")
