@@ -15,7 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -60,6 +60,19 @@ if os.getenv('TRUST_PROXY', 'false').lower() == 'true':
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def _handle_csrf_error(e):
+    # Surface the exact reason (referer mismatch vs missing/invalid token) and the
+    # values involved, so proxy misconfiguration can be diagnosed from the logs.
+    app.logger.warning(
+        "CSRF 400: %s | host=%s referer=%s secure=%s",
+        e.description, request.host, request.referrer, request.is_secure,
+    )
+    return e.description, 400
+
+
 limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
 
 _TD_EXPAND = {'fp': 'False Positive', 'fn': 'False Negative', 'tp': 'True Positive', 'tn': 'True Negative'}
