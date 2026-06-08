@@ -45,6 +45,12 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+# Flask-WTF's HTTPS referer check compares the browser Referer against
+# request.host (scheme + host + port). Some reverse proxies cannot present a
+# Host that matches the public origin's host:port, which yields "The referrer
+# does not match the host". Set CSRF_SSL_STRICT=false to drop that extra check;
+# the CSRF token and SameSite=Lax cookie still protect state-changing requests.
+app.config['WTF_CSRF_SSL_STRICT'] = os.getenv('CSRF_SSL_STRICT', 'true').lower() == 'true'
 app.jinja_env.filters['split'] = lambda s, sep=',': s.split(sep)
 
 # Trust X-Forwarded-* only behind a known reverse proxy (set TRUST_PROXY=true in
