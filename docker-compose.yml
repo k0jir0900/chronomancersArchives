@@ -64,6 +64,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      CSRF_SSL_STRICT: ${CSRF_SSL_STRICT:-true}
       ENABLE_SSL: ${ENABLE_SSL:-false}
       DOMAIN: ${DOMAIN:-localhost}
       DAYS: ${DAYS:-825}
