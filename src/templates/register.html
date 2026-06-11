@@ -604,7 +604,7 @@ function setSelectByName(name, value) {
         state.items.forEach((item, idx) => {
             const tag = document.createElement('div');
             tag.className = 'mitre-tag';
-            tag.innerHTML = `<span>${item.label}</span>` +
+            tag.innerHTML = `<span>${escapeHtml(item.label)}</span>` +
                 `<button type="button" class="mitre-tag-del" data-idx="${idx}" title="Remove">` +
                 `<i class="bi bi-x-lg"></i></button>`;
             container.appendChild(tag);
@@ -756,7 +756,7 @@ function setSelectByName(name, value) {
         tagState.items.forEach((item, idx) => {
             const tag = document.createElement('div');
             tag.className = 'mitre-tag';
-            tag.innerHTML = `<span>${item.label}</span>` +
+            tag.innerHTML = `<span>${escapeHtml(item.label)}</span>` +
                 `<button type="button" class="mitre-tag-del" data-idx="${idx}" title="Remove">` +
                 `<i class="bi bi-x-lg"></i></button>`;
             container.appendChild(tag);

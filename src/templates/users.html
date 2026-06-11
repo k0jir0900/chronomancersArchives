@@ -3,6 +3,22 @@
 {% block page_title %}User Management{% endblock %}
 
 {% block content %}
+{% if revealed_key %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-key-fill"></i>
+        <div class="flex-grow-1">
+            New API key for <strong>{{ revealed_for }}</strong> (shown once — copy it now):
+            <code id="revealed-api-key">{{ revealed_key }}</code>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                onclick="navigator.clipboard.writeText(document.getElementById('revealed-api-key').textContent);this.innerHTML='<i class=&quot;bi bi-check&quot;></i>'">
+            <i class="bi bi-clipboard"></i>
+        </button>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 <div class="d-flex justify-content-end mb-3">
     <button class="btn btn-primary" onclick="toggleAddUserForm()">
         <i class="bi bi-person-plus me-2"></i>New User

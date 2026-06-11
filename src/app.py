@@ -45,6 +45,9 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+# Upper bound for an uploaded SQL backup (kept within MAX_CONTENT_LENGTH so the
+# global request guard rejects anything larger first, with a friendly message here).
+MAX_BACKUP_SIZE = 16 * 1024 * 1024
 # Flask-WTF's HTTPS referer check compares the browser Referer against
 # request.host (scheme + host + port). Some reverse proxies cannot present a
 # Host that matches the public origin's host:port, which yields "The referrer
@@ -73,7 +76,48 @@ def _handle_csrf_error(e):
     return e.description, 400
 
 
-limiter = Limiter(key_func=get_remote_address, app=app, default_limits=[])
+# A modest global default protects every endpoint as defense in depth; sensitive
+# routes (login, API key generation, the CDU export) set tighter explicit limits.
+# Static assets and the health check are exempt so page loads and the container
+# probe are never throttled. Behind a reverse proxy set TRUST_PROXY=true so the
+# limiter keys on the real client IP and not the shared proxy address.
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[os.getenv('RATE_LIMIT_DEFAULT', '240 per minute')],
+)
+
+
+@limiter.request_filter
+def _exempt_static_and_health():
+    return request.endpoint in ('static', 'health')
+
+
+# Content-Security-Policy and hardening headers. The CDN origins below match the
+# <script>/<link> tags in the templates; 'unsafe-inline' is required for the inline
+# scripts and onclick handlers still present in the templates (a nonce does not
+# cover inline event-handler attributes). frame-ancestors/base-uri/object-src close
+# off clickjacking and base-tag injection.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.after_request
+def _set_security_headers(resp):
+    resp.headers.setdefault('Content-Security-Policy', _CSP)
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('Referrer-Policy', 'same-origin')
+    return resp
 
 _TD_EXPAND = {'fp': 'False Positive', 'fn': 'False Negative', 'tp': 'True Positive', 'tn': 'True Negative'}
 def _humanize_td(val):
@@ -113,7 +157,7 @@ def get_db_connection():
     try:
         conn = _get_pool().get_connection()
     except mysql.connector.Error as err:
-        print(f"Error: {err}")
+        app.logger.error("DB pool connection error: %s", err)
         return None
     # Track per-request connections so the teardown hook always returns them to
     # the pool, even if a route forgets to close or the client aborts the request
@@ -189,7 +233,7 @@ def load_reports_config():
             data = yaml.safe_load(f)
             return data.get('reports', []) if data else []
     except Exception as e:
-        print(f"Error loading reports config: {e}")
+        app.logger.error("Error loading reports config: %s", e)
         return []
 
 def build_report_data(config, company, date_from, date_to):
@@ -317,7 +361,7 @@ def build_report_data(config, company, date_from, date_to):
             data['sections'].append(result)
 
     except Exception as e:
-        print(f"Report build error: {e}")
+        app.logger.error("Report build error: %s", e)
         data['error'] = str(e)
     finally:
         cursor.close()
@@ -327,7 +371,7 @@ def build_report_data(config, company, date_from, date_to):
 
 def sync_mitre_data(domain='enterprise'):
     if domain not in MITRE_DOMAINS:
-        print(f"MITRE sync: unknown domain {domain}")
+        app.logger.warning("MITRE sync: unknown domain %s", domain)
         return False
     url = MITRE_DOMAINS[domain]['url']
     kill_chain = MITRE_DOMAINS[domain]['kill_chain']
@@ -336,7 +380,7 @@ def sync_mitre_data(domain='enterprise'):
         with urllib.request.urlopen(req, timeout=120) as response:
             data = json.loads(response.read().decode('utf-8'))
     except Exception as e:
-        print(f"MITRE sync fetch error: {e}")
+        app.logger.error("MITRE sync fetch error: %s", e)
         return False
 
     attack_version = None
@@ -407,10 +451,10 @@ def sync_mitre_data(domain='enterprise'):
                 'last_sync': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'source': url,
             })
-            print(f"MITRE sync complete ({domain}): {total} techniques stored")
+            app.logger.info("MITRE sync complete (%s): %s techniques stored", domain, total)
             return True
         except Exception as e:
-            print(f"MITRE DB error: {e}")
+            app.logger.error("MITRE DB error: %s", e)
             return False
         finally:
             cursor.execute("SELECT RELEASE_LOCK(%s)", (f'mitre_sync_lock_{domain}',))
@@ -446,13 +490,13 @@ def startup_mitre_check():
                 needs_sync = days_since >= 7
 
             if needs_sync:
-                print(f"Starting MITRE ATT&CK background sync ({domain})...")
+                app.logger.info("Starting MITRE ATT&CK background sync (%s)...", domain)
                 t = threading.Thread(target=sync_mitre_data, args=(domain,), daemon=True)
                 t.start()
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"MITRE startup check error: {e}")
+        app.logger.error("MITRE startup check error: %s", e)
 
 
 def login_required(view):
@@ -595,7 +639,7 @@ def init_db():
         )
         conn.commit()
         if cursor.rowcount:
-            print("Default admin user created.")
+            app.logger.info("Default admin user created.")
 
         cursor.close()
         conn.close()
@@ -619,13 +663,17 @@ def _load_current_user(user_id):
         cursor.close()
         conn.close()
 
-@app.context_processor
-def inject_user():
+def _current_user():
+    """Per-request cached current user (id, username, role, ...) or None."""
     if 'user_id' not in session:
-        return dict(current_user=None)
+        return None
     if not hasattr(g, 'current_user'):
         g.current_user = _load_current_user(session['user_id'])
-    return dict(current_user=g.current_user)
+    return g.current_user
+
+@app.context_processor
+def inject_user():
+    return dict(current_user=_current_user())
 
 # Single source of truth for the time-range presets used across the app
 # (Home, Reports). The dropdown labels live in templates/macros.html and the
@@ -1007,8 +1055,9 @@ def history_edit_mitre():
         cursor.execute("UPDATE archives SET mitre = %s WHERE id = %s", (mitre_data, record_id))
         conn.commit()
         flash('MITRE ATT&CK updated.', 'success')
-    except Exception as e:
-        flash(f'Database error: {e}', 'error')
+    except mysql.connector.Error as e:
+        app.logger.error("history_edit_mitre DB error: %s", e)
+        flash('A database error occurred.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -1067,8 +1116,9 @@ def history_edit_tags():
         cursor.execute("UPDATE archives SET tags = %s WHERE id = %s", (tags_data, record_id))
         conn.commit()
         flash('Tags updated.', 'success')
-    except Exception as e:
-        flash(f'Database error: {e}', 'error')
+    except mysql.connector.Error as e:
+        app.logger.error("history_edit_tags DB error: %s", e)
+        flash('A database error occurred.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -1120,10 +1170,7 @@ def diff_rules():
     v1_label = f"Version {rule1_data['created_at'].strftime('%Y-%m-%d %H:%M')}" if rule1_data else "Version 1"
     v2_label = f"Version {rule2_data['created_at'].strftime('%Y-%m-%d %H:%M')}" if rule2_data else "Version 2"
     
-    r1_json = json.dumps(r1_content)
-    r2_json = json.dumps(r2_content)
-    
-    return render_template('diff.html', all_rules=all_rules, selected_rule=selected_rule, versions=versions, v1_id=v1_id, v2_id=v2_id, rule1_content_json=r1_json, rule2_content_json=r2_json, v1_label=v1_label, v2_label=v2_label)
+    return render_template('diff.html', all_rules=all_rules, selected_rule=selected_rule, versions=versions, v1_id=v1_id, v2_id=v2_id, rule1_content=r1_content, rule2_content=r2_content, v1_label=v1_label, v2_label=v2_label)
 
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit("10 per minute", methods=["POST"])
@@ -1264,7 +1311,8 @@ def register():
                 conn.commit()
                 flash('Log registered successfully!', 'success')
             except mysql.connector.Error as err:
-                flash(f'Database error: {err}', 'error')
+                app.logger.error("register insert DB error: %s", err)
+                flash('A database error occurred.', 'error')
             finally:
                 cursor.close()
                 conn.close()
@@ -1675,7 +1723,8 @@ def profile():
                 conn.commit()
                 flash('Profile updated successfully!', 'success')
             except mysql.connector.Error as err:
-                flash(f'Error updating profile: {err}', 'error')
+                app.logger.error("profile update_info DB error: %s", err)
+                flash('Could not update profile.', 'error')
             finally:
                 if cursor:
                     cursor.close()
@@ -1704,7 +1753,8 @@ def profile():
                     else:
                         flash('Incorrect current password.', 'error')
                 except mysql.connector.Error as err:
-                    flash(f'Database error: {err}', 'error')
+                    app.logger.error("profile change_password DB error: %s", err)
+                    flash('A database error occurred.', 'error')
                 finally:
                     if cursor:
                         cursor.close()
@@ -1719,7 +1769,8 @@ def profile():
                     conn.commit()
                     flash(f'Theme updated to {theme.title()} Mode.', 'success')
                 except mysql.connector.Error as err:
-                    flash(f'Error updating theme: {err}', 'error')
+                    app.logger.error("profile update_theme DB error: %s", err)
+                    flash('Could not update theme.', 'error')
                 finally:
                     if cursor:
                         cursor.close()
@@ -1766,32 +1817,34 @@ class _TLSHandshakeFilter(logging.Filter):
 logging.getLogger('gunicorn.access').addFilter(_HealthAccessFilter())
 logging.getLogger('gunicorn.error').addFilter(_TLSHandshakeFilter())
 
+# Route app.logger through gunicorn's handlers so leveled logs reach stdout/stderr
+# (where the log collector reads). Falls back to basic config for local `python`.
+_gunicorn_error_logger = logging.getLogger('gunicorn.error')
+if _gunicorn_error_logger.handlers:
+    app.logger.handlers = _gunicorn_error_logger.handlers
+    app.logger.setLevel(_gunicorn_error_logger.level)
+else:
+    logging.basicConfig(level=logging.INFO)
+    app.logger.setLevel(logging.INFO)
+
 try:
     with app.app_context():
         init_db()
         startup_mitre_check()
 except Exception as e:
-    print(f"Warning: Could not initialize on startup: {e}")
+    app.logger.warning("Could not initialize on startup: %s", e)
 
 def admin_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        
-        conn = get_db_connection()
-        user = None
-        if conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT role FROM users WHERE id = %s", (session['user_id'],))
-            user = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            
-        if not user or user['role'] != 'admin':
+
+        user = _current_user()
+        if not user or user.get('role') != 'admin':
             flash('Admin privileges required.', 'error')
             return redirect(url_for('home'))
-            
+
         return view(**kwargs)
     return wrapped_view
 
@@ -1817,7 +1870,10 @@ def users():
     cursor.close()
     conn.close()
 
-    return render_template('users.html', users=users_data)
+    revealed_key = session.pop('api_key_reveal', None)
+    revealed_for = session.pop('api_key_reveal_for', None)
+    return render_template('users.html', users=users_data,
+                           revealed_key=revealed_key, revealed_for=revealed_for)
 
 @app.route('/users/add', methods=['POST'])
 @login_required
@@ -1849,7 +1905,8 @@ def add_user():
             conn.commit()
             flash('User created successfully.', 'success')
         except mysql.connector.Error as err:
-            flash(f'Error creating user: {err}', 'error')
+            app.logger.error("add_user DB error: %s", err)
+            flash('Could not create user (the username may already exist).', 'error')
         finally:
             cursor.close()
             conn.close()
@@ -1890,7 +1947,8 @@ def edit_user(user_id):
                 
         conn.commit()
     except mysql.connector.Error as err:
-        flash(f'Error updating user: {err}', 'error')
+        app.logger.error("edit_user DB error: %s", err)
+        flash('Could not update user.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -1913,7 +1971,8 @@ def delete_user(user_id):
             conn.commit()
             flash('User deleted successfully.', 'success')
         except mysql.connector.Error as err:
-            flash(f'Error deleting user: {err}', 'error')
+            app.logger.error("delete_user DB error: %s", err)
+            flash('Could not delete user.', 'error')
         finally:
             cursor.close()
             conn.close()
@@ -1934,7 +1993,7 @@ def admin_regenerate_api_key(user_id):
         flash('Database connection failed.', 'error')
         return redirect(url_for('users'))
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+    cursor.execute("SELECT role, username FROM users WHERE id = %s", (user_id,))
     target = cursor.fetchone()
     if target and target.get('role') == 'third_party':
         cursor.close()
@@ -1952,9 +2011,14 @@ def admin_regenerate_api_key(user_id):
         cursor.execute("SELECT id FROM api_keys WHERE user_id = %s", (user_id,))
         key_row = cursor.fetchone()
         _log_api_audit(user_id, key_row['id'] if key_row else None, None, action)
-        flash(f'API key {"generated" if action == "key_generated" else "regenerated"} — new key: {new_key}', 'success')
+        # Reveal the plaintext key once via the session (popped on the next users
+        # page render), instead of persisting it in a flash message.
+        session['api_key_reveal'] = new_key
+        session['api_key_reveal_for'] = (target.get('username') if target else None) or str(user_id)
+        flash(f'API key {"generated" if action == "key_generated" else "regenerated"}.', 'success')
     except mysql.connector.Error as err:
-        flash(f'Error: {err}', 'error')
+        app.logger.error("admin_regenerate_api_key DB error: %s", err)
+        flash('Could not regenerate the API key.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -1981,7 +2045,8 @@ def admin_delete_api_key(user_id):
         else:
             flash('No API key found for this user.', 'error')
     except mysql.connector.Error as err:
-        flash(f'Error: {err}', 'error')
+        app.logger.error("admin_delete_api_key DB error: %s", err)
+        flash('Could not delete the API key.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -2037,7 +2102,7 @@ def generate_backup_custom(filepath):
         os.replace(tmp_path, filepath)
         return True
     except Exception as e:
-        print(f"Backup Error: {e}")
+        app.logger.error("Backup error: %s", e)
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         return False
@@ -2096,7 +2161,7 @@ def restore_backup_custom(filepath):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Restore Error: {e}")
+        app.logger.error("Restore error: %s", e)
         return False
     finally:
         try:
@@ -2248,13 +2313,36 @@ def upload_backup():
         flash('No selected file', 'error')
         return redirect(url_for('list_backups'))
         
-    if file and file.filename.endswith('.sql'):
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(BACKUP_FOLDER, filename))
-        flash(f'Backup "{filename}" uploaded successfully.', 'success')
-    else:
+    if not (file and file.filename.lower().endswith('.sql')):
         flash('Invalid file format. Only .sql files are allowed.', 'error')
-        
+        return redirect(url_for('list_backups'))
+
+    # The restore path executes every statement in this file, so accept only a
+    # plausible plain-text SQL dump: reject binary (NUL bytes / non-UTF-8) and
+    # require the content to start with a SQL comment or statement.
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_BACKUP_SIZE:
+        flash(f'Backup too large (max {MAX_BACKUP_SIZE // (1024 * 1024)} MB).', 'error')
+        return redirect(url_for('list_backups'))
+    head = file.read(4096)
+    file.seek(0)
+    if b'\x00' in head:
+        flash('Invalid backup: file is not plain-text SQL.', 'error')
+        return redirect(url_for('list_backups'))
+    try:
+        head_text = head.decode('utf-8')
+    except UnicodeDecodeError:
+        flash('Invalid backup: file is not valid UTF-8 text.', 'error')
+        return redirect(url_for('list_backups'))
+    if not head_text.lstrip().startswith(('--', '/*', 'DROP', 'CREATE', 'INSERT', 'SET', 'USE', 'LOCK')):
+        flash('Invalid backup: does not look like a SQL dump.', 'error')
+        return redirect(url_for('list_backups'))
+
+    filename = secure_filename(file.filename)
+    file.save(os.path.join(BACKUP_FOLDER, filename))
+    flash(f'Backup "{filename}" uploaded successfully.', 'success')
     return redirect(url_for('list_backups'))
 
 # --- SCHEDULER CONFIGURATION ---
@@ -2266,7 +2354,7 @@ if scheduler_available:
     try:
         scheduler = BackgroundScheduler()
     except Exception as e:
-        print(f"Error initializing scheduler: {e}")
+        app.logger.error("Error initializing scheduler: %s", e)
         scheduler_available = False
 
 def load_schedule_config():
@@ -2286,7 +2374,7 @@ def scheduled_backup_job():
     with app.app_context():
         filename = f"auto_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
         filepath = os.path.join(BACKUP_FOLDER, filename)
-        print(f"Running Scheduled Backup: {filename}")
+        app.logger.info("Running scheduled backup: %s", filename)
         generate_backup_custom(filepath)
         config = load_schedule_config()
         if config.get('logrotate_auto'):
@@ -2300,7 +2388,7 @@ def scheduled_backup_job():
                         if datetime.fromtimestamp(os.path.getctime(path)) < cutoff:
                             os.remove(path)
                             deleted += 1
-            print(f"Log rotation: {deleted} backup(s) older than {days} days removed.")
+            app.logger.info("Log rotation: %s backup(s) older than %s days removed.", deleted, days)
 
 def init_scheduler():
     if not scheduler_available or not scheduler:
@@ -2330,7 +2418,7 @@ def init_scheduler():
                 if not scheduler.running:
                     scheduler.start()
         except ValueError:
-            print("Invalid time format in schedule config.")
+            app.logger.warning("Invalid time format in schedule config.")
     else:
         if scheduler.get_job('backup_job'):
             scheduler.remove_job('backup_job')
@@ -2349,7 +2437,7 @@ if scheduler_available:
             if not scheduler.running:
                 scheduler.start()
         except Exception as e:
-            print(f"MITRE scheduler error: {e}")
+            app.logger.error("MITRE scheduler error: %s", e)
 
         def safe_shutdown():
             if scheduler.running:
@@ -2501,7 +2589,8 @@ def generate_api_key():
         cursor2.close()
         _log_api_audit(session['user_id'], key_row['id'] if key_row else None, None, action)
     except mysql.connector.Error as err:
-        flash(f'Error generating API key: {err}', 'error')
+        app.logger.error("generate_api_key DB error: %s", err)
+        flash('Could not generate the API key.', 'error')
     finally:
         cursor.close()
         conn.close()
@@ -2509,6 +2598,7 @@ def generate_api_key():
 
 
 @app.route('/api/v1/cdu')
+@limiter.limit("60 per minute")
 @require_api_key
 def api_export_cdu():
     company = request.args.get('company', '').strip()

@@ -99,8 +99,10 @@
 {% if summary %}
 
 <!-- PDF Export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+        integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
+        integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 <script>
     async function exportToPDF() {
         const src = document.getElementById('report-container');
@@ -725,7 +727,7 @@
         state.items.forEach((item, idx) => {
             const tag = document.createElement('div');
             tag.className = 'mitre-tag';
-            tag.innerHTML = `<span>${item.label}</span><button type="button" class="mitre-tag-del" data-idx="${idx}"><i class="bi bi-x-lg"></i></button>`;
+            tag.innerHTML = `<span>${escapeHtml(item.label)}</span><button type="button" class="mitre-tag-del" data-idx="${idx}"><i class="bi bi-x-lg"></i></button>`;
             container.appendChild(tag);
         });
         container.querySelectorAll('.mitre-tag-del').forEach(btn => {
@@ -851,7 +853,7 @@
         tagState.items.forEach((item, idx) => {
             const tag = document.createElement('div');
             tag.className = 'mitre-tag';
-            tag.innerHTML = `<span>${item.label}</span><button type="button" class="mitre-tag-del" data-idx="${idx}"><i class="bi bi-x-lg"></i></button>`;
+            tag.innerHTML = `<span>${escapeHtml(item.label)}</span><button type="button" class="mitre-tag-del" data-idx="${idx}"><i class="bi bi-x-lg"></i></button>`;
             container.appendChild(tag);
         });
         container.querySelectorAll('.mitre-tag-del').forEach(btn => {
@@ -864,7 +866,8 @@
 </script>
 {% endif %}
 {% if chart_data and is_active_search and summary %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+        integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const gridColor = '#30363d';

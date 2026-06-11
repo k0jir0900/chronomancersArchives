@@ -1,9 +1,9 @@
-Flask==3.0.0
-Flask-WTF==1.2.1
-Flask-Limiter==3.5.0
-mysql-connector-python==8.2.0
-python-dotenv==1.0.0
-gunicorn==21.2.0
-Werkzeug==3.0.1
+Flask==3.0.3
+Flask-WTF==1.2.2
+Flask-Limiter==3.8.0
+mysql-connector-python==8.4.0
+python-dotenv==1.0.1
+gunicorn==23.0.0
+Werkzeug==3.0.6
 APScheduler==3.10.4
 PyYAML>=6.0

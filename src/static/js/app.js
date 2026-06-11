@@ -1,3 +1,15 @@
+// Escape user-supplied text before interpolating it into innerHTML. Tag values
+// are free text (up to 255 chars from /api/tags), so chip labels must be escaped
+// to avoid DOM-based XSS.
+window.escapeHtml = function (s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
 document.getElementById('sidebarToggle')?.addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('show');
     document.getElementById('sidebarOverlay').classList.toggle('show');

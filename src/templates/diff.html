@@ -3,9 +3,12 @@
 {% block page_title %}Compare CDU Versions{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css">
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html@3.4.48/bundles/css/diff2html.min.css"
+      integrity="sha384-iBvSlI3tNrrSIy7s6mvLg+5B2Z/QXbR4L0Pzg1nRf8zkXrz5JF316MLm2igMIpi2" crossorigin="anonymous">
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"
+        integrity="sha384-kfJm1UHujU89hXr0VHT0u0t4lqavqaoomP6wix8D9fhzTeFvC9DYyaT36//Qd144" crossorigin="anonymous"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html@3.4.48/bundles/js/diff2html-ui.min.js"
+        integrity="sha384-99bAn+VpNpavq3FarkwuSuDPDHMeakTiNqxxz3ezwdGUr414srIXY3YmXjaAkYne" crossorigin="anonymous"></script>
 <style>
 .ca-rule-opt { padding:.35rem .75rem; cursor:pointer; font-size:var(--fs-base); color:var(--text-primary); }
 .ca-rule-opt:hover { background:rgba(255,255,255,.06); }
@@ -104,8 +107,8 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        var rule1Content = {{ rule1_content_json | safe }};
-        var rule2Content = {{ rule2_content_json | safe }};
+        var rule1Content = {{ rule1_content | tojson }};
+        var rule2Content = {{ rule2_content | tojson }};
         var diffString = Diff.createTwoFilesPatch(
             {{ selected_rule | tojson }}, {{ selected_rule | tojson }},
             rule1Content, rule2Content,
