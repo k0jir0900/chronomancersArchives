@@ -2331,11 +2331,9 @@ def upload_backup():
     if b'\x00' in head:
         flash('Invalid backup: file is not plain-text SQL.', 'error')
         return redirect(url_for('list_backups'))
-    try:
-        head_text = head.decode('utf-8')
-    except UnicodeDecodeError:
-        flash('Invalid backup: file is not valid UTF-8 text.', 'error')
-        return redirect(url_for('list_backups'))
+    # Only the start of the file is inspected; decode tolerantly so a multi-byte
+    # character straddling the 4096-byte read boundary does not reject a valid dump.
+    head_text = head.decode('utf-8', errors='ignore')
     if not head_text.lstrip().startswith(('--', '/*', 'DROP', 'CREATE', 'INSERT', 'SET', 'USE', 'LOCK')):
         flash('Invalid backup: does not look like a SQL dump.', 'error')
         return redirect(url_for('list_backups'))
