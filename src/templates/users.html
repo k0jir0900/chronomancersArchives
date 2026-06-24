@@ -3,22 +3,6 @@
 {% block page_title %}User Management{% endblock %}
 
 {% block content %}
-{% if revealed_key %}
-<div class="alert alert-warning alert-dismissible fade show" role="alert">
-    <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-key-fill"></i>
-        <div class="flex-grow-1">
-            New API key for <strong>{{ revealed_for }}</strong> (shown once — copy it now):
-            <code id="revealed-api-key">{{ revealed_key }}</code>
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary"
-                onclick="navigator.clipboard.writeText(document.getElementById('revealed-api-key').textContent);this.innerHTML='<i class=&quot;bi bi-check&quot;></i>'">
-            <i class="bi bi-clipboard"></i>
-        </button>
-    </div>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-{% endif %}
 <div class="d-flex justify-content-end mb-3">
     <button class="btn btn-primary" onclick="toggleAddUserForm()">
         <i class="bi bi-person-plus me-2"></i>New User
@@ -82,7 +66,6 @@
                         <th>Username</th>
                         <th>Role</th>
                         <th>Status</th>
-                        <th>API Key</th>
                         <th style="padding-left:1rem;">Actions</th>
                     </tr>
                 </thead>
@@ -123,20 +106,6 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user.key_value %}
-                            <div class="d-flex flex-column gap-0">
-                                <code class="text-secondary" style="font-size:var(--fs-xs);">
-                                    {{ user.key_prefix }}••••
-                                </code>
-                                <span class="text-secondary" style="font-size:var(--fs-xs);">
-                                    Last used: {{ user.last_used_at.strftime('%Y-%m-%d') if user.last_used_at else 'Never' }}
-                                </span>
-                            </div>
-                            {% else %}
-                            <span class="text-secondary small">No key</span>
-                            {% endif %}
-                        </td>
-                        <td>
                             <div class="d-flex gap-2 align-items-center">
 
                                 {% if current_user.id != user.id %}
@@ -161,34 +130,6 @@
                                 <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm" style="width:4.5rem;"
                                     onclick="togglePasswordReset({{ user.id }})">
                                     <i class="bi bi-key me-1"></i>Reset
-                                </button>
-                                {% endif %}
-
-                                {% if user.role == 'third_party' %}
-                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:6.5rem;opacity:.2;">
-                                    <i class="bi bi-arrow-repeat me-1"></i>Gen Key
-                                </button>
-                                {% else %}
-                                <form action="/users/api-key/regenerate/{{ user.id }}" method="POST" class="d-flex"
-                                    onsubmit="return confirm('{{ 'Regenerate' if user.key_value else 'Generate' }} API key for {{ user.username }}?');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-secondary" style="width:6.5rem;">
-                                        <i class="bi bi-arrow-repeat me-1"></i>{{ 'Regen Key' if user.key_value else 'Gen Key' }}
-                                    </button>
-                                </form>
-                                {% endif %}
-
-                                {% if user.key_value and user.role != 'third_party' %}
-                                <form action="/users/api-key/delete/{{ user.id }}" method="POST" class="d-flex"
-                                    onsubmit="return confirm('Delete API key for {{ user.username }}?');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-danger" style="width:5.5rem;">
-                                        <i class="bi bi-key-fill me-1"></i>Del Key
-                                    </button>
-                                </form>
-                                {% else %}
-                                <button class="btn btn-sm ca-btn-sm btn-outline-secondary" disabled style="width:5.5rem;opacity:.2;">
-                                    <i class="bi bi-key-fill me-1"></i>Del Key
                                 </button>
                                 {% endif %}
 
