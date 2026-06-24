@@ -79,7 +79,8 @@ reports:
                  LEFT(COALESCE(description, '—'), 200) AS description,
                  modified_by,
                  created_at,
-                 company
+                 company,
+                 company_id
           FROM archives
       ) sub
       {where}

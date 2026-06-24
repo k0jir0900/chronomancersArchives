@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Companies – Chronomancers Archives{% endblock %}
+{% block page_title %}Companies{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-primary" onclick="toggleAddCompanyForm()">
+        <i class="bi bi-building-add me-2"></i>New Company
+    </button>
+</div>
+
+<!-- Add Company Form -->
+<div id="addCompanySection" style="display:none;" class="mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h6 class="mb-0 ca-section-title">Create New Company</h6>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="/companies/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-floppy me-1"></i>Save
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Companies Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-building me-2"></i>All Companies</h6>
+        <span class="badge bg-primary">{{ companies|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" style="font-size:var(--fs-base);">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>CDUs</th>
+                        <th>Users</th>
+                        <th style="padding-left:1rem;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in companies %}
+                    <tr>
+                        <td class="align-middle">
+                            <form action="/companies/edit/{{ c.id }}" method="POST" class="d-flex gap-2 align-items-center">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="text" name="name" value="{{ c.name }}" class="form-control form-control-sm" style="max-width:220px;">
+                                <input type="hidden" name="is_active" value="{{ c.is_active }}">
+                                <button type="submit" class="btn btn-sm btn-outline-light ca-btn-sm">
+                                    <i class="bi bi-floppy"></i>
+                                </button>
+                            </form>
+                        </td>
+                        <td class="align-middle">
+                            {% if c.is_active %}
+                            <span class="badge" style="background:#238636;">Active</span>
+                            {% else %}
+                            <span class="badge" style="background:#6e7681;">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="align-middle text-secondary">{{ c.archive_count }}</td>
+                        <td class="align-middle text-secondary">{{ c.user_count }}</td>
+                        <td>
+                            <div class="d-flex gap-2 align-items-center">
+                                <form action="/companies/edit/{{ c.id }}" method="POST" class="d-flex">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="name" value="{{ c.name }}">
+                                    <input type="hidden" name="is_active" value="{{ 0 if c.is_active else 1 }}">
+                                    <button type="submit" class="btn btn-sm ca-btn-sm btn-outline-{{ 'warning' if c.is_active else 'success' }}" style="width:6rem;">
+                                        <i class="bi bi-{{ 'slash-circle' if c.is_active else 'check-circle' }} me-1"></i>{{ 'Deactivate' if c.is_active else 'Activate' }}
+                                    </button>
+                                </form>
+                                <form action="/companies/delete/{{ c.id }}" method="POST" class="d-flex"
+                                    onsubmit="return confirm('Delete company ' + {{ c.name | tojson }} + '? Companies with CDUs are deactivated instead.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger ca-btn-sm" style="width:5rem;">
+                                        <i class="bi bi-trash3 me-1"></i>Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleAddCompanyForm() {
+        const el = document.getElementById('addCompanySection');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

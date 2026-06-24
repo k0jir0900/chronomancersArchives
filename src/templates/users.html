@@ -36,6 +36,7 @@
                         <select class="form-select" name="role" id="addUserRole" required>
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
+                            <option value="superadmin">Super Admin</option>
                             <option value="service">Service</option>
                             <option value="third_party">Third Party</option>
                         </select>
@@ -46,6 +47,22 @@
                         </button>
                     </div>
                 </div>
+                {% if all_companies %}
+                <div class="row g-2 mt-1">
+                    <div class="col-12">
+                        <label class="form-label">Companies</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            {% for c in all_companies %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="company_ids" value="{{ c.id }}" id="add-uc-{{ c.id }}">
+                                <label class="form-check-label small" for="add-uc-{{ c.id }}">{{ c.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Ignored for Super Admin (sees every company).</div>
+                    </div>
+                </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -66,6 +83,7 @@
                         <th>Username</th>
                         <th>Role</th>
                         <th>Status</th>
+                        <th>Companies</th>
                         <th style="padding-left:1rem;">Actions</th>
                     </tr>
                 </thead>
@@ -93,6 +111,7 @@
                                 <select name="role" onchange="this.form.submit()" class="form-select ca-inline-select">
                                     <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
                                     <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                                    <option value="superadmin" {% if user.role == 'superadmin' %}selected{% endif %}>Super Admin</option>
                                     <option value="service" {% if user.role == 'service' %}selected{% endif %}>Service</option>
                                     <option value="third_party" {% if user.role == 'third_party' %}selected{% endif %}>Third Party</option>
                                 </select>
@@ -103,6 +122,28 @@
                             <span class="badge" style="background:#238636;">Active</span>
                             {% else %}
                             <span class="badge" style="background:#6e7681;">Disabled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.role == 'superadmin' %}
+                            <span class="text-secondary small">All companies</span>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-outline-light ca-btn-sm" onclick="toggleCompanies({{ user.id }})">
+                                <i class="bi bi-building me-1"></i>{{ user.company_ids|length }}
+                            </button>
+                            <div id="companies-{{ user.id }}" style="display:none;" class="mt-2">
+                                <form action="/users/{{ user.id }}/companies" method="POST">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    {% for c in all_companies %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="company_ids" value="{{ c.id }}"
+                                               id="uc-{{ user.id }}-{{ c.id }}" {% if c.id in user.company_ids %}checked{% endif %}>
+                                        <label class="form-check-label small" for="uc-{{ user.id }}-{{ c.id }}">{{ c.name }}</label>
+                                    </div>
+                                    {% endfor %}
+                                    <button type="submit" class="btn btn-sm btn-primary ca-btn-sm mt-1">Save</button>
+                                </form>
+                            </div>
                             {% endif %}
                         </td>
                         <td>
@@ -133,7 +174,7 @@
                                 </button>
                                 {% endif %}
 
-                                {% if current_user.id != user.id %}
+                                {% if current_user.id != user.id and not user.is_protected %}
                                 <form action="/users/delete/{{ user.id }}" method="POST" class="d-flex"
                                     onsubmit="return confirm('Delete user ' + {{ user.username | tojson }} + '?');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -176,6 +217,10 @@
     }
     function togglePasswordReset(userId) {
         const el = document.getElementById('reset-password-' + userId);
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+    function toggleCompanies(userId) {
+        const el = document.getElementById('companies-' + userId);
         el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
     (() => {

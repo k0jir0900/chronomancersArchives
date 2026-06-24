@@ -66,6 +66,19 @@
                     </select>
                 </div>
 
+                {% if company_locked %}
+                <input type="hidden" name="company_id" value="{{ default_company_id }}">
+                {% else %}
+                <div class="ca-form-field">
+                    <label class="ca-label">Company <span class="text-danger">*</span></label>
+                    <select class="form-select ca-input" name="company_id" required>
+                        {% for c in companies %}
+                        <option value="{{ c.id }}" {% if c.id == default_company_id %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
                 <div class="ca-form-field">
                     <label class="ca-label">Environment <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="environment" required>

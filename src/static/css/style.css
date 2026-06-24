@@ -116,6 +116,24 @@ body {
 }
 .sidebar-nav .nav-link i { font-size: 1.1rem; }
 
+/* ---- Collapsible nav group (Tools) ---- */
+.sidebar-nav button.nav-group-toggle {
+    border: 0;
+    background: none;
+    width: 100%;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+.sidebar-nav .nav-group.show { display: flex; flex-direction: column; gap: .25rem; }
+.sidebar-nav .nav-group .nav-link { padding-left: 2.5rem; }
+.sidebar-nav .nav-group-toggle .nav-group-caret {
+    margin-left: auto;
+    font-size: .8rem;
+    transition: transform .2s ease;
+}
+.sidebar-nav .nav-group-toggle.collapsed .nav-group-caret { transform: rotate(-90deg); }
+
 /* ---- Topbar ---- */
 .topbar {
     height: var(--topbar-h);

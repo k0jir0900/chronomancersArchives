@@ -12,7 +12,7 @@
           integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="{{ static_url('css/style.css') }}" rel="stylesheet">
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -34,15 +34,24 @@
             <a href="/mitre-coverage" class="nav-link {% if request.endpoint == 'mitre_coverage' %}active{% endif %}">
                 <i class="bi bi-diagram-3"></i><span>MITRE Coverage</span>
             </a>
-            <a href="/search" class="nav-link {% if request.endpoint == 'search_cdu' %}active{% endif %}">
-                <i class="bi bi-search"></i><span>Search</span>
-            </a>
-            <a href="/reports" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
-                <i class="bi bi-file-bar-graph"></i><span>Reports</span>
-            </a>
-            <a href="/severity-calc" class="nav-link {% if request.endpoint == 'severity_calc' %}active{% endif %}">
-                <i class="bi bi-calculator"></i><span>Severity Calculator</span>
-            </a>
+            {% set tools_active = request.endpoint in ['search_cdu', 'reports', 'severity_calc'] %}
+            <button type="button" class="nav-link nav-group-toggle collapsed {% if tools_active %}active{% endif %}"
+                    data-bs-toggle="collapse" data-bs-target="#toolsMenu"
+                    aria-expanded="false" aria-controls="toolsMenu">
+                <i class="bi bi-tools"></i><span>Tools</span>
+                <i class="bi bi-chevron-down nav-group-caret"></i>
+            </button>
+            <div class="collapse nav-group" id="toolsMenu">
+                <a href="/search" class="nav-link {% if request.endpoint == 'search_cdu' %}active{% endif %}">
+                    <i class="bi bi-search"></i><span>Search</span>
+                </a>
+                <a href="/reports" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+                    <i class="bi bi-file-bar-graph"></i><span>Reports</span>
+                </a>
+                <a href="/severity-calc" class="nav-link {% if request.endpoint == 'severity_calc' %}active{% endif %}">
+                    <i class="bi bi-calculator"></i><span>Severity Calculator</span>
+                </a>
+            </div>
         </nav>
     </aside>
 
@@ -54,6 +63,19 @@
                 </button>
                 <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
             </div>
+            <div class="d-flex align-items-center gap-3">
+                {% if session.get('user_id') and show_company_selector %}
+                <form method="POST" action="/set-company" class="d-flex align-items-center mb-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <i class="bi bi-building me-2 text-secondary"></i>
+                    <select name="company" class="form-select form-select-sm" style="width:auto;min-width:9rem;" onchange="this.form.submit()">
+                        <option value="all" {% if active_company == 'all' %}selected{% endif %}>All companies</option>
+                        {% for c in nav_companies %}
+                        <option value="{{ c.id }}" {% if active_company == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
             <div class="topbar-user dropdown">
                 {% if session.get('user_id') and current_user %}
                 {% if current_user.profile_pic %}
@@ -69,10 +91,11 @@
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><h6 class="dropdown-header">Account</h6></li>
                     <li><a class="dropdown-item" href="/profile"><i class="bi bi-person-gear me-2"></i>My Profile</a></li>
-                    {% if current_user.role == 'admin' %}
+                    {% if current_user.role in ['admin', 'superadmin'] %}
                     <li><hr class="dropdown-divider"></li>
                     <li><h6 class="dropdown-header">Administration</h6></li>
                     <li><a class="dropdown-item" href="/users"><i class="bi bi-people-fill me-2"></i>User Management</a></li>
+                    <li><a class="dropdown-item" href="/companies"><i class="bi bi-building me-2"></i>Companies</a></li>
                     <li><a class="dropdown-item" href="/backup"><i class="bi bi-database me-2"></i>Backup Management</a></li>
                     <li><a class="dropdown-item" href="/admin/mitre"><i class="bi bi-diagram-3 me-2"></i>MITRE Management</a></li>
                     <li><a class="dropdown-item" href="/audit"><i class="bi bi-shield-lock me-2"></i>Audit</a></li>
@@ -81,6 +104,7 @@
                     <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-left me-2"></i>Logout</a></li>
                 </ul>
                 {% endif %}
+            </div>
             </div>
         </header>
 
@@ -105,7 +129,7 @@
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ static_url('js/app.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

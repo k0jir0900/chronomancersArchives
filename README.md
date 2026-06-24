@@ -36,6 +36,9 @@ On first launch a default admin user is created automatically:
 
 - **Username:** `admin`
 - **Password:** `admin`
+- **Role:** `superadmin` (the base `admin` account is promoted to `superadmin` on startup, so it sees every company)
+
+A default company, **Aconetwork**, is also seeded on first start and is the default selection when registering a CDU.
 
 > [!WARNING]
 > Change this password immediately after logging in (Profile > Security).
@@ -76,11 +79,39 @@ docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$
 ## Features
 
 - **Dashboard** - Stats, activity histogram, tuning driver breakdown, and top rules chart with optional date filtering.
-- **CDU Registration** - Log a rule lifecycle event (creation, modification, elimination) with structured metadata.
+- **CDU Registration** - Log a rule lifecycle event (creation, modification, elimination) with structured metadata, scoped to a company.
 - **Rules History** - Browse all rules, search by name/company/environment/status, view full event timeline per rule, export to PDF.
 - **Version Diff** - Side-by-side comparison of any two versions of a rule's content.
+- **MITRE Coverage** - ATT&CK technique coverage matrix per company and domain.
+- **Multi-Company (multi-tenant)** - Every view is scoped by company. Non-superadmin users only see data for the companies assigned to them; a topbar selector switches the active company (or `All`) when more than one is assigned.
+- **Companies** - Create, rename, activate/deactivate, and delete companies (admin and superadmin). Companies with existing CDUs are deactivated instead of deleted to preserve history.
 - **Backups** - Create, download, restore, and schedule automated database backups (admin only).
-- **User Management** - Create users, assign roles (User / Admin), reset passwords (admin only).
+- **User Management** - Create users, assign roles (User / Admin / Super Admin / Service / Third Party), assign companies, reset passwords (admin and superadmin).
+
+---
+
+## Roles & Access
+
+Access is scoped by role and by company. Users only see CDU data for the companies assigned to them; superadmin is the only role that sees everything.
+
+| Role | Sees | Administration menu | Company scope |
+|---|---|---|---|
+| **Super Admin** | All companies | Yes (Users, Companies, Backups, MITRE, Audit) | Unrestricted; selector lists every company plus `All` |
+| **Admin** | Assigned companies | Yes (Users, Companies, Backups, MITRE, Audit) | Limited to assigned companies |
+| **User** | Assigned companies | No | Limited to assigned companies |
+| **Service** | - | No | Cannot log in via web |
+| **Third Party** | - | No | Cannot log in via web |
+
+Routes added with this access model:
+
+| Route | Access | Purpose |
+|---|---|---|
+| `/companies` (+ `/companies/add`, `/edit/<id>`, `/delete/<id>`) | admin, superadmin | Company CRUD |
+| `/users/<id>/companies` | admin, superadmin | Assign companies to a user |
+| `/set-company` | any logged-in user | Switch the active company in the topbar selector |
+
+> [!NOTE]
+> A user with no company assigned sees no CDU data (fail-safe default). Assign at least one company, or use a superadmin account, to view data.
 
 ---
 
@@ -89,7 +120,7 @@ docker compose exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$
 | Field | Description |
 |---|---|
 | CDU Name | Unique name for the detection rule (e.g., `Suspicious CLI Command`) |
-| Company | Organization the rule applies to |
+| Company | Organization the rule applies to; selected from the companies assigned to you (defaults to Aconetwork) |
 | Environment | Deployment scope (e.g., `Production`, `Staging`) |
 | Action Type | `creation` / `modification` / `elimination` |
 | Rule Status | `active` - running in production / `disabled` - turned off |

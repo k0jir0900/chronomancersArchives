@@ -252,6 +252,9 @@ def build_report_data(config, company, date_from, date_to):
     if date_to:
         where_parts.append('created_at <= %s')
         params.append(date_to + ' 23:59:59')
+    cf, cfp = company_filter()
+    where_parts.append(cf)
+    params.extend(cfp)
 
     where = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
     data  = {'sections': []}
@@ -604,14 +607,63 @@ def init_db():
             "INSERT IGNORE INTO tags_pool (category, value) VALUES (%s, %s)",
             seed_tags
         )
+        # --- Multi-company (multi-tenant) schema ---
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS companies (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                is_active TINYINT NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_companies (
+                user_id INT NOT NULL,
+                company_id INT NOT NULL,
+                PRIMARY KEY (user_id, company_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """)
+        try:
+            cursor.execute("ALTER TABLE archives ADD COLUMN company_id INT NULL")
+        except mysql.connector.Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE archives ADD INDEX idx_company_id (company_id)")
+        except mysql.connector.Error:
+            pass
+        # Default company, plus backfill from existing free-text company values.
+        cursor.execute("INSERT IGNORE INTO companies (name) VALUES ('Aconetwork')")
+        cursor.execute("""
+            INSERT IGNORE INTO companies (name)
+            SELECT DISTINCT company FROM archives
+            WHERE company IS NOT NULL AND company <> ''
+        """)
+        cursor.execute("""
+            UPDATE archives a
+            JOIN companies c ON a.company = c.name
+            SET a.company_id = c.id
+            WHERE a.company_id IS NULL
+        """)
+        # Promote the base admin account to superadmin (sees every company).
+        cursor.execute("UPDATE users SET role = 'superadmin' WHERE username = 'admin' AND role = 'admin'")
         hashed_password = generate_password_hash('admin')
         cursor.execute(
             "INSERT IGNORE INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
-            ('admin', 'Admin', hashed_password, 'admin')
+            ('admin', 'Admin', hashed_password, 'superadmin')
         )
         conn.commit()
         if cursor.rowcount:
             app.logger.info("Default admin user created.")
+
+        # Mark the base admin as protected: it can be disabled but never deleted.
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN is_protected TINYINT NOT NULL DEFAULT 0")
+        except mysql.connector.Error:
+            pass
+        cursor.execute("UPDATE users SET is_protected = 1 WHERE username = 'admin'")
+        conn.commit()
 
         cursor.close()
         conn.close()
@@ -646,6 +698,133 @@ def _current_user():
 @app.context_processor
 def inject_user():
     return dict(current_user=_current_user())
+
+
+@app.context_processor
+def inject_static_versioning():
+    # Append the file's mtime as a ?v= query so a changed CSS/JS gets a new URL
+    # and browsers refetch it instead of serving a stale cached copy.
+    def static_url(filename):
+        try:
+            v = int(os.path.getmtime(os.path.join(app.static_folder, filename)))
+        except OSError:
+            v = 0
+        return url_for('static', filename=filename, v=v)
+    return dict(static_url=static_url)
+
+
+def _compute_allowed_company_ids():
+    """None = unrestricted (superadmin). Otherwise the list of company_id the
+    current user is assigned to ([] = assigned to none -> sees nothing)."""
+    user = _current_user()
+    if not user:
+        return []
+    if user.get('role') == 'superadmin':
+        return None
+    conn = get_db_connection()
+    if not conn:
+        return []
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT company_id FROM user_companies WHERE user_id = %s", (user['id'],))
+        return [r[0] for r in cursor.fetchall()]
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def allowed_company_ids():
+    """Per-request cached result of _compute_allowed_company_ids()."""
+    if not hasattr(g, '_allowed_company_ids'):
+        g._allowed_company_ids = _compute_allowed_company_ids()
+    return g._allowed_company_ids
+
+
+def company_filter(alias=''):
+    """(sql_fragment, params) scoping `archives` to the companies the request may
+    see, honoring the active-company selector (session['active_company']).
+    Always returns a fragment usable inside a WHERE/AND."""
+    prefix = (alias + '.') if alias else ''
+    allowed = allowed_company_ids()
+    active = session.get('active_company', 'all')
+
+    if allowed is None:
+        if active != 'all':
+            try:
+                return (f"{prefix}company_id = %s", [int(active)])
+            except (ValueError, TypeError):
+                pass
+        return ('1=1', [])
+
+    if not allowed:
+        return ('1=0', [])
+
+    ids = list(allowed)
+    if active != 'all':
+        try:
+            active_id = int(active)
+            if active_id in allowed:
+                ids = [active_id]
+        except (ValueError, TypeError):
+            pass
+    placeholders = ','.join(['%s'] * len(ids))
+    return (f"{prefix}company_id IN ({placeholders})", ids)
+
+
+def visible_companies():
+    """[{id, name}] of active companies the current request may see, by name."""
+    allowed = allowed_company_ids()
+    if allowed is not None and not allowed:
+        return []
+    conn = get_db_connection()
+    if not conn:
+        return []
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if allowed is None:
+            cursor.execute("SELECT id, name FROM companies WHERE is_active = 1 ORDER BY name")
+        else:
+            ph = ','.join(['%s'] * len(allowed))
+            cursor.execute(
+                f"SELECT id, name FROM companies WHERE is_active = 1 AND id IN ({ph}) ORDER BY name",
+                tuple(allowed)
+            )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.context_processor
+def inject_company_context():
+    if 'user_id' not in session:
+        return {}
+    cos = visible_companies()
+    role = (_current_user() or {}).get('role')
+    return dict(
+        nav_companies=cos,
+        active_company=session.get('active_company', 'all'),
+        show_company_selector=(role == 'superadmin' or len(cos) > 1),
+    )
+
+
+@app.route('/set-company', methods=['POST'])
+@login_required
+def set_company():
+    choice = request.form.get('company', 'all')
+    if choice == 'all':
+        session['active_company'] = 'all'
+    else:
+        allowed = allowed_company_ids()
+        try:
+            cid = int(choice)
+        except (ValueError, TypeError):
+            cid = None
+        if cid is not None and (allowed is None or cid in allowed):
+            session['active_company'] = str(cid)
+        else:
+            session['active_company'] = 'all'
+    return redirect(request.referrer or url_for('home'))
 
 # Single source of truth for the time-range presets used across the app
 # (Home, Reports). The dropdown labels live in templates/macros.html and the
@@ -696,7 +875,8 @@ def home():
         return render_template('home.html')
     
     cursor = conn.cursor(dictionary=True)
-    
+    cf, cfp = company_filter()
+
     # Default preset across menus is "This week".
     default_start, default_end = preset_date_range('week')
 
@@ -707,7 +887,7 @@ def home():
         # "All time" preset: span from the first record to today so the rest of
         # the route (BETWEEN queries, daily chart axis) keeps working unchanged.
         preset_key = ''
-        cursor.execute("SELECT MIN(DATE(created_at)) AS first FROM archives")
+        cursor.execute(f"SELECT MIN(DATE(created_at)) AS first FROM archives WHERE {cf}", tuple(cfp))
         first = cursor.fetchone()['first']
         start_date = first.isoformat() if first else default_start
         end_date = default_end
@@ -725,13 +905,13 @@ def home():
         'preset_key': preset_key
     }
     
-    cursor.execute("SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives")
+    cursor.execute(f"SELECT COUNT(DISTINCT rule_name) as unique_total FROM archives WHERE {cf}", tuple(cfp))
     unique_rules_count = cursor.fetchone()['unique_total']
 
-    cursor.execute("SELECT COUNT(*) as total FROM archives WHERE created_at BETWEEN %s AND %s", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+    cursor.execute(f"SELECT COUNT(*) as total FROM archives WHERE created_at BETWEEN %s AND %s AND {cf}", (start_date + ' 00:00:00', end_date + ' 23:59:59') + tuple(cfp))
     total_events = cursor.fetchone()['total']
-    
-    cursor.execute("SELECT action_type, COUNT(*) as count FROM archives WHERE created_at BETWEEN %s AND %s GROUP BY action_type", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+
+    cursor.execute(f"SELECT action_type, COUNT(*) as count FROM archives WHERE created_at BETWEEN %s AND %s AND {cf} GROUP BY action_type", (start_date + ' 00:00:00', end_date + ' 23:59:59') + tuple(cfp))
     action_counts = {row['action_type']: row['count'] for row in cursor.fetchall()}
     
     stats = {
@@ -742,10 +922,10 @@ def home():
         'elimination': action_counts.get('elimination', 0)
     }
     
-    cursor.execute("SELECT rule_name, COUNT(*) as count FROM archives GROUP BY rule_name ORDER BY count DESC LIMIT 5")
+    cursor.execute(f"SELECT rule_name, COUNT(*) as count FROM archives WHERE {cf} GROUP BY rule_name ORDER BY count DESC LIMIT 5", tuple(cfp))
     top_rules = cursor.fetchall()
 
-    cursor.execute("SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' AND created_at BETWEEN %s AND %s GROUP BY tuning_driver", (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+    cursor.execute(f"SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' AND created_at BETWEEN %s AND %s AND {cf} GROUP BY tuning_driver", (start_date + ' 00:00:00', end_date + ' 23:59:59') + tuple(cfp))
     tuning_drivers = cursor.fetchall()
     
     driver_map = {
@@ -760,13 +940,13 @@ def home():
         'counts': [row['count'] for row in tuning_drivers]
     }
     
-    cursor.execute("""
-        SELECT DATE(created_at) as log_date, action_type, COUNT(*) as count 
-        FROM archives 
-        WHERE created_at BETWEEN %s AND %s
-        GROUP BY log_date, action_type 
+    cursor.execute(f"""
+        SELECT DATE(created_at) as log_date, action_type, COUNT(*) as count
+        FROM archives
+        WHERE created_at BETWEEN %s AND %s AND {cf}
+        GROUP BY log_date, action_type
         ORDER BY log_date ASC
-    """, (start_date + ' 00:00:00', end_date + ' 23:59:59'))
+    """, (start_date + ' 00:00:00', end_date + ' 23:59:59') + tuple(cfp))
     daily_rows = cursor.fetchall()
     
     start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
@@ -795,13 +975,13 @@ def home():
         if d in date_to_idx and a in chart_data['datasets']:
             chart_data['datasets'][a][date_to_idx[d]] = c
 
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT
             SUM(CASE WHEN a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]' THEN 1 ELSE 0 END) as with_mitre,
             SUM(CASE WHEN a.mitre IS NULL OR a.mitre = 'null' OR a.mitre = '[]' THEN 1 ELSE 0 END) as without_mitre
         FROM archives a
-        JOIN (SELECT rule_name, MAX(id) AS max_id FROM archives GROUP BY rule_name) latest ON a.id = latest.max_id
-    """)
+        JOIN (SELECT rule_name, MAX(id) AS max_id FROM archives WHERE {cf} GROUP BY rule_name) latest ON a.id = latest.max_id
+    """, tuple(cfp))
     mitre_row = cursor.fetchone()
     mitre_coverage = {
         'with_mitre': int(mitre_row['with_mitre'] or 0),
@@ -822,27 +1002,28 @@ def history():
         return redirect(url_for('home'))
 
     cursor = conn.cursor(dictionary=True)
+    cf, cfp = company_filter()
 
-    cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
+    cursor.execute(f"SELECT DISTINCT rule_name FROM archives WHERE {cf} ORDER BY rule_name", tuple(cfp))
     rules = [row['rule_name'] for row in cursor.fetchall()]
 
-    cursor.execute("SELECT DISTINCT company FROM archives ORDER BY company")
-    companies = [row['company'] for row in cursor.fetchall()]
+    companies = [c['name'] for c in visible_companies()]
 
-    cursor.execute("SELECT DISTINCT environment FROM archives ORDER BY environment")
+    cursor.execute(f"SELECT DISTINCT environment FROM archives WHERE {cf} ORDER BY environment", tuple(cfp))
     environments = [row['environment'] for row in cursor.fetchall()]
 
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT a.rule_name, a.company, a.environment, a.rule_status, a.mitre,
                c.version
         FROM archives a
         JOIN (
             SELECT rule_name, company, environment, MAX(id) AS max_id, COUNT(*) AS version
             FROM archives
+            WHERE {cf}
             GROUP BY rule_name, company, environment
         ) c ON a.id = c.max_id
         ORDER BY a.rule_name
-    """)
+    """, tuple(cfp))
     all_rules_metadata = cursor.fetchall()
     for row in all_rules_metadata:
         m = row.get('mitre')
@@ -878,8 +1059,8 @@ def history():
         params.append(selected_status)
 
     if conditions:
-        query_conditions = " AND ".join(conditions)
-        cursor.execute(f"SELECT * FROM archives WHERE {query_conditions} ORDER BY created_at DESC", tuple(params))
+        query_conditions = " AND ".join(conditions + [cf])
+        cursor.execute(f"SELECT * FROM archives WHERE {query_conditions} ORDER BY created_at DESC", tuple(params) + tuple(cfp))
         timeline_data = cursor.fetchall()
         
         if timeline_data:
@@ -917,7 +1098,7 @@ def history():
                 GROUP BY DATE(created_at)
                 ORDER BY DATE(created_at) ASC
             """
-            cursor.execute(chart_query, tuple(params) + (start_date, end_date))
+            cursor.execute(chart_query, tuple(params) + tuple(cfp) + (start_date, end_date))
             daily_stats = cursor.fetchall()
             
             chart_data = {'labels': [], 'created': [], 'modified': [], 'deleted': []}
@@ -1023,8 +1204,9 @@ def history_edit_mitre():
         return redirect(redirect_url)
 
     cursor = conn.cursor()
+    cf, cfp = company_filter()
     try:
-        cursor.execute("UPDATE archives SET mitre = %s WHERE id = %s", (mitre_data, record_id))
+        cursor.execute(f"UPDATE archives SET mitre = %s WHERE id = %s AND {cf}", (mitre_data, record_id) + tuple(cfp))
         conn.commit()
         flash('MITRE ATT&CK updated.', 'success')
     except mysql.connector.Error as e:
@@ -1085,7 +1267,8 @@ def history_edit_tags():
                 except mysql.connector.Error:
                     pass
             tags_data = json.dumps(clean) if clean else None
-        cursor.execute("UPDATE archives SET tags = %s WHERE id = %s", (tags_data, record_id))
+        cf, cfp = company_filter()
+        cursor.execute(f"UPDATE archives SET tags = %s WHERE id = %s AND {cf}", (tags_data, record_id) + tuple(cfp))
         conn.commit()
         flash('Tags updated.', 'success')
     except mysql.connector.Error as e:
@@ -1110,27 +1293,28 @@ def diff_rules():
         return redirect(url_for('history'))
         
     cursor = conn.cursor(dictionary=True)
-    
-    cursor.execute("SELECT rule_name FROM archives GROUP BY rule_name HAVING COUNT(*) >= 2 ORDER BY rule_name")
+    cf, cfp = company_filter()
+
+    cursor.execute(f"SELECT rule_name FROM archives WHERE {cf} GROUP BY rule_name HAVING COUNT(*) >= 2 ORDER BY rule_name", tuple(cfp))
     all_rules = [row['rule_name'] for row in cursor.fetchall()]
-    
+
     versions = []
     rule1_data = None
     rule2_data = None
-    
+
     if selected_rule:
-        cursor.execute("SELECT id, created_at, action_type, modified_by, tuning_driver FROM archives WHERE rule_name = %s ORDER BY created_at ASC", (selected_rule,))
+        cursor.execute(f"SELECT id, created_at, action_type, modified_by, tuning_driver FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at ASC", (selected_rule,) + tuple(cfp))
         rows = cursor.fetchall()
         for i, v in enumerate(rows):
             v['version'] = i + 1
         versions = list(reversed(rows))
-        
+
         if v1_id:
-            cursor.execute("SELECT rule_content, created_at FROM archives WHERE id = %s", (v1_id,))
+            cursor.execute(f"SELECT rule_content, created_at FROM archives WHERE id = %s AND {cf}", (v1_id,) + tuple(cfp))
             rule1_data = cursor.fetchone()
-        
+
         if v2_id:
-            cursor.execute("SELECT rule_content, created_at FROM archives WHERE id = %s", (v2_id,))
+            cursor.execute(f"SELECT rule_content, created_at FROM archives WHERE id = %s AND {cf}", (v2_id,) + tuple(cfp))
             rule2_data = cursor.fetchone()
             
     cursor.close()
@@ -1199,7 +1383,13 @@ def logout():
 def register():
     if request.method == 'POST':
         rule_name = request.form.get('rule_name')
-        company = 'CMPC'
+        company_id_in = request.form.get('company_id')
+        # When a company is selected globally, that selection governs the record:
+        # the form hides the company field, so ignore any submitted value and use
+        # the active one (still validated below against the allowed companies).
+        active_company = session.get('active_company', 'all')
+        if active_company != 'all':
+            company_id_in = active_company
         third_party_user = (request.form.get('third_party_user') or '').strip() or None
         siem = request.form.get('siem') or None
         environment = request.form.get('environment')
@@ -1220,6 +1410,17 @@ def register():
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor(dictionary=True)
+
+            allowed = allowed_company_ids()
+            cursor.execute("SELECT id, name FROM companies WHERE id = %s AND is_active = 1", (company_id_in,))
+            crow = cursor.fetchone()
+            if not crow or (allowed is not None and crow['id'] not in allowed):
+                cursor.close()
+                conn.close()
+                flash('Invalid or unauthorized company.', 'error')
+                return redirect(url_for('register'))
+            company = crow['name']
+            company_id = crow['id']
 
             try:
                 cursor.execute("SELECT full_name, username FROM users WHERE id = %s", (session['user_id'],))
@@ -1275,8 +1476,8 @@ def register():
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            query = "INSERT INTO archives (rule_name, company, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modified_by, mitre, siem, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-            values = (rule_name, company, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modifier_name, mitre_data, siem, tags_data)
+            query = "INSERT INTO archives (rule_name, company, company_id, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modified_by, mitre, siem, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            values = (rule_name, company, company_id, environment, action_type, rule_status, tuning_driver, severity, ticket, description, rule_content, modifier_name, mitre_data, siem, tags_data)
 
             try:
                 cursor.execute(query, values)
@@ -1293,12 +1494,24 @@ def register():
 
         return redirect(url_for('register'))
 
+    companies = visible_companies()
+    active = session.get('active_company', 'all')
+    company_locked = active != 'all' and any(str(c['id']) == active for c in companies)
+    default_company_id = None
+    if company_locked:
+        default_company_id = int(active)
+    else:
+        default_company_id = next((c['id'] for c in companies if c['name'] == 'Aconetwork'), None)
+        if default_company_id is None and companies:
+            default_company_id = companies[0]['id']
+
     conn = get_db_connection()
     rules = []
     users_list = []
     if conn:
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT DISTINCT rule_name FROM archives ORDER BY rule_name")
+        cf, cfp = company_filter()
+        cursor.execute(f"SELECT DISTINCT rule_name FROM archives WHERE {cf} ORDER BY rule_name", tuple(cfp))
         rules = [r['rule_name'] for r in cursor.fetchall()]
         cursor.execute(
             "SELECT username, COALESCE(NULLIF(full_name,''), username) AS display_name "
@@ -1308,7 +1521,9 @@ def register():
         users_list = cursor.fetchall()
         cursor.close()
         conn.close()
-    return render_template('register.html', rules=rules, users=users_list)
+    return render_template('register.html', rules=rules, users=users_list,
+                           companies=companies, default_company_id=default_company_id,
+                           company_locked=company_locked)
 
 
 @app.route('/severity-calc')
@@ -1369,12 +1584,12 @@ def mitre_coverage():
     tactic_order, tactic_labels = MITRE_TACTICS[selected_domain]
 
     cursor = conn.cursor(dictionary=True)
+    cf_a, cfp_a = company_filter('a')
 
-    cursor.execute("SELECT DISTINCT company FROM archives WHERE company IS NOT NULL AND company != '' ORDER BY company")
-    companies = [r['company'] for r in cursor.fetchall()]
+    companies = [c['name'] for c in visible_companies()]
 
     if selected_company:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 mt.technique_id, mt.name, mt.tactic, mt.parent_id,
                 COUNT(DISTINCT la.rule_name) as cdu_count
@@ -1385,7 +1600,7 @@ def mitre_coverage():
                 INNER JOIN (SELECT rule_name, MAX(id) as max_id FROM archives GROUP BY rule_name) latest
                     ON a.id = latest.max_id
                 WHERE a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]'
-                  AND a.company = %s
+                  AND a.company = %s AND {cf_a}
             ) la ON JSON_CONTAINS(la.mitre, JSON_QUOTE(
                 CASE
                     WHEN mt.parent_id IS NOT NULL
@@ -1396,9 +1611,9 @@ def mitre_coverage():
             WHERE mt.domain = %s
             GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
             ORDER BY mt.technique_id
-        """, (selected_company, selected_domain))
+        """, (selected_company,) + tuple(cfp_a) + (selected_domain,))
     else:
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 mt.technique_id, mt.name, mt.tactic, mt.parent_id,
                 COUNT(DISTINCT la.rule_name) as cdu_count
@@ -1409,6 +1624,7 @@ def mitre_coverage():
                 INNER JOIN (SELECT rule_name, MAX(id) as max_id FROM archives GROUP BY rule_name) latest
                     ON a.id = latest.max_id
                 WHERE a.mitre IS NOT NULL AND a.mitre != 'null' AND a.mitre != '[]'
+                  AND {cf_a}
             ) la ON JSON_CONTAINS(la.mitre, JSON_QUOTE(
                 CASE
                     WHEN mt.parent_id IS NOT NULL
@@ -1419,7 +1635,7 @@ def mitre_coverage():
             WHERE mt.domain = %s
             GROUP BY mt.technique_id, mt.name, mt.tactic, mt.parent_id
             ORDER BY mt.technique_id
-        """, (selected_domain,))
+        """, tuple(cfp_a) + (selected_domain,))
     rows = cursor.fetchall()
 
     cursor.execute("SELECT last_updated FROM mitre_sync WHERE domain = %s ORDER BY id DESC LIMIT 1", (selected_domain,))
@@ -1531,9 +1747,10 @@ def api_rule_latest():
     if not conn:
         return jsonify({})
     cursor = conn.cursor(dictionary=True)
+    cf, cfp = company_filter()
     cursor.execute(
-        "SELECT company, siem, environment, severity, rule_status FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
-        (rule_name,)
+        f"SELECT company, siem, environment, severity, rule_status FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at DESC LIMIT 1",
+        (rule_name,) + tuple(cfp)
     )
     row = cursor.fetchone()
     cursor.close()
@@ -1551,9 +1768,10 @@ def api_rule_mitre():
     if not conn:
         return jsonify(None)
     cursor = conn.cursor(dictionary=True)
+    cf, cfp = company_filter()
     cursor.execute(
-        "SELECT mitre FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
-        (rule_name,)
+        f"SELECT mitre FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at DESC LIMIT 1",
+        (rule_name,) + tuple(cfp)
     )
     row = cursor.fetchone()
     cursor.close()
@@ -1642,9 +1860,10 @@ def api_rule_tags():
     if not conn:
         return jsonify(None)
     cursor = conn.cursor(dictionary=True)
+    cf, cfp = company_filter()
     cursor.execute(
-        "SELECT tags FROM archives WHERE rule_name = %s ORDER BY created_at DESC LIMIT 1",
-        (rule_name,)
+        f"SELECT tags FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at DESC LIMIT 1",
+        (rule_name,) + tuple(cfp)
     )
     row = cursor.fetchone()
     cursor.close()
@@ -1809,7 +2028,7 @@ def admin_required(view):
             return redirect(url_for('login'))
 
         user = _current_user()
-        if not user or user.get('role') != 'admin':
+        if not user or user.get('role') not in ('admin', 'superadmin'):
             flash('Admin privileges required.', 'error')
             return redirect(url_for('home'))
 
@@ -1828,15 +2047,26 @@ def users():
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
         SELECT u.id, u.username, u.full_name, u.role, u.profile_pic,
-               COALESCE(u.is_active, 1) as is_active
+               COALESCE(u.is_active, 1) as is_active,
+               COALESCE(u.is_protected, 0) as is_protected
         FROM users u
         ORDER BY u.username
     """)
     users_data = cursor.fetchall()
+
+    cursor.execute("SELECT id, name FROM companies WHERE is_active = 1 ORDER BY name")
+    all_companies = cursor.fetchall()
+    cursor.execute("SELECT user_id, company_id FROM user_companies")
+    assignments = {}
+    for r in cursor.fetchall():
+        assignments.setdefault(r['user_id'], set()).add(r['company_id'])
+    for u in users_data:
+        u['company_ids'] = assignments.get(u['id'], set())
+
     cursor.close()
     conn.close()
 
-    return render_template('users.html', users=users_data)
+    return render_template('users.html', users=users_data, all_companies=all_companies)
 
 @app.route('/users/add', methods=['POST'])
 @login_required
@@ -1865,6 +2095,19 @@ def add_user():
                 hashed_password = generate_password_hash(password)
             cursor.execute("INSERT INTO users (username, full_name, password_hash, role) VALUES (%s, %s, %s, %s)",
                         (username, full_name, hashed_password, role))
+            new_user_id = cursor.lastrowid
+            company_ids = request.form.getlist('company_ids')
+            assign = []
+            for cid in company_ids:
+                try:
+                    assign.append((new_user_id, int(cid)))
+                except (ValueError, TypeError):
+                    pass
+            if assign:
+                cursor.executemany(
+                    "INSERT IGNORE INTO user_companies (user_id, company_id) VALUES (%s, %s)",
+                    assign
+                )
             conn.commit()
             flash('User created successfully.', 'success')
         except mysql.connector.Error as err:
@@ -1930,6 +2173,11 @@ def delete_user(user_id):
     if conn:
         cursor = conn.cursor()
         try:
+            cursor.execute("SELECT is_protected FROM users WHERE id = %s", (user_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                flash('This account is protected and cannot be deleted.', 'error')
+                return redirect(url_for('users'))
             cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
             conn.commit()
             flash('User deleted successfully.', 'success')
@@ -1940,6 +2188,138 @@ def delete_user(user_id):
             cursor.close()
             conn.close()
             
+    return redirect(url_for('users'))
+
+
+@app.route('/companies')
+@login_required
+@admin_required
+def companies():
+    conn = get_db_connection()
+    if not conn:
+        flash('Database connection failed.', 'error')
+        return redirect(url_for('home'))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT c.id, c.name, c.is_active,
+               (SELECT COUNT(*) FROM archives a WHERE a.company_id = c.id) AS archive_count,
+               (SELECT COUNT(*) FROM user_companies uc WHERE uc.company_id = c.id) AS user_count
+        FROM companies c
+        ORDER BY c.name
+    """)
+    companies_data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('companies.html', companies=companies_data)
+
+
+@app.route('/companies/add', methods=['POST'])
+@login_required
+@admin_required
+def add_company():
+    name = (request.form.get('name') or '').strip()
+    if not name:
+        flash('Company name is required.', 'error')
+        return redirect(url_for('companies'))
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO companies (name) VALUES (%s)", (name,))
+            conn.commit()
+            _log_api_audit(session['user_id'], None, None, 'company_created', {'name': name})
+            flash('Company created.', 'success')
+        except mysql.connector.Error as err:
+            app.logger.error("add_company DB error: %s", err)
+            flash('Could not create company (the name may already exist).', 'error')
+        finally:
+            cursor.close()
+            conn.close()
+    return redirect(url_for('companies'))
+
+
+@app.route('/companies/edit/<int:company_id>', methods=['POST'])
+@login_required
+@admin_required
+def edit_company(company_id):
+    name = (request.form.get('name') or '').strip()
+    is_active = 1 if request.form.get('is_active') == '1' else 0
+    if not name:
+        flash('Company name is required.', 'error')
+        return redirect(url_for('companies'))
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("UPDATE companies SET name = %s, is_active = %s WHERE id = %s", (name, is_active, company_id))
+            conn.commit()
+            flash('Company updated.', 'success')
+        except mysql.connector.Error as err:
+            app.logger.error("edit_company DB error: %s", err)
+            flash('Could not update company (the name may already exist).', 'error')
+        finally:
+            cursor.close()
+            conn.close()
+    return redirect(url_for('companies'))
+
+
+@app.route('/companies/delete/<int:company_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_company(company_id):
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT COUNT(*) FROM archives WHERE company_id = %s", (company_id,))
+            has_archives = cursor.fetchone()[0] > 0
+            if has_archives:
+                cursor.execute("UPDATE companies SET is_active = 0 WHERE id = %s", (company_id,))
+                flash('Company has archives; deactivated instead of deleted.', 'success')
+            else:
+                cursor.execute("DELETE FROM companies WHERE id = %s", (company_id,))
+                flash('Company deleted.', 'success')
+            conn.commit()
+        except mysql.connector.Error as err:
+            app.logger.error("delete_company DB error: %s", err)
+            flash('Could not delete company.', 'error')
+        finally:
+            cursor.close()
+            conn.close()
+    return redirect(url_for('companies'))
+
+
+@app.route('/users/<int:user_id>/companies', methods=['POST'])
+@login_required
+@admin_required
+def set_user_companies(user_id):
+    company_ids = request.form.getlist('company_ids')
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM user_companies WHERE user_id = %s", (user_id,))
+            assign = []
+            for cid in company_ids:
+                try:
+                    assign.append((user_id, int(cid)))
+                except (ValueError, TypeError):
+                    pass
+            if assign:
+                cursor.executemany(
+                    "INSERT IGNORE INTO user_companies (user_id, company_id) VALUES (%s, %s)",
+                    assign
+                )
+            conn.commit()
+            _log_api_audit(session['user_id'], None, None, 'company_assigned',
+                           {'user_id': user_id, 'companies': [a[1] for a in assign]})
+            flash('Company assignments updated.', 'success')
+        except mysql.connector.Error as err:
+            app.logger.error("set_user_companies DB error: %s", err)
+            flash('Could not update company assignments.', 'error')
+        finally:
+            cursor.close()
+            conn.close()
     return redirect(url_for('users'))
 
 
@@ -2504,18 +2884,20 @@ def search_cdu():
             flash('Database connection failed.', 'error')
             return redirect(url_for('home'))
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
+        cf, cfp = company_filter()
+        cursor.execute(f"""
             SELECT a.rule_name, a.company, a.environment, a.rule_status, a.mitre,
                    c.version
             FROM archives a
             JOIN (
                 SELECT rule_name, company, environment, MAX(id) AS max_id, COUNT(*) AS version
                 FROM archives
+                WHERE {cf}
                 GROUP BY rule_name, company, environment
             ) c ON a.id = c.max_id
             WHERE a.rule_content LIKE %s
             ORDER BY a.rule_name
-        """, (pattern,))
+        """, tuple(cfp) + (pattern,))
         results = cursor.fetchall()
         for row in results:
             m = row.get('mitre')
@@ -2558,14 +2940,7 @@ def reports():
     }
     report_title = title_map.get(preset, 'CDU Report')
 
-    companies = []
-    conn = get_db_connection()
-    if conn:
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT company FROM archives WHERE company IS NOT NULL ORDER BY company")
-        companies = [r[0] for r in cur.fetchall()]
-        cur.close()
-        conn.close()
+    companies = [c['name'] for c in visible_companies()]
 
     report_data = None
     if selected and run:

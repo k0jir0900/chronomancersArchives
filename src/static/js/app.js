@@ -19,6 +19,25 @@ document.getElementById('sidebarOverlay')?.addEventListener('click', () => {
     document.getElementById('sidebarOverlay').classList.remove('show');
 });
 
+// Persist the collapsible "Tools" nav group across page loads. Default is collapsed
+// (server renders it closed); once the user opens it, the choice is remembered so
+// navigating into a tool page keeps it open.
+(function () {
+    var menu = document.getElementById('toolsMenu');
+    if (!menu) return;
+    var toggle = document.querySelector('[data-bs-target="#toolsMenu"]');
+    var KEY = 'toolsMenuOpen';
+    if (localStorage.getItem(KEY) === '1') {
+        menu.classList.add('show');
+        if (toggle) {
+            toggle.classList.remove('collapsed');
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+    menu.addEventListener('shown.bs.collapse', function () { localStorage.setItem(KEY, '1'); });
+    menu.addEventListener('hidden.bs.collapse', function () { localStorage.setItem(KEY, '0'); });
+})();
+
 // Single source of truth for time-range presets (must match app.py:preset_date_range
 // and the labels in templates/macros.html). Returns ISO {from, to}; empty for All time.
 window.presetRange = function (key) {
