@@ -33,6 +33,9 @@ if [ "$(echo "${ENABLE_SSL:-false}" | tr '[:upper:]' '[:lower:]')" = "true" ]; t
     regen=0
     if [ ! -s "$CERT_FILE" ] || [ ! -s "$KEY_FILE" ]; then
         regen=1
+    elif [ -f "$CERT_DIR/.managed" ]; then
+        # Cert was uploaded via the web SSL panel; never regenerate it.
+        regen=0
     else
         issuer="$(openssl x509 -in "$CERT_FILE" -noout -issuer 2>/dev/null | sed 's/^issuer//')"
         subject="$(openssl x509 -in "$CERT_FILE" -noout -subject 2>/dev/null | sed 's/^subject//')"

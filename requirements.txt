@@ -7,3 +7,4 @@ gunicorn==23.0.0
 Werkzeug==3.0.6
 APScheduler==3.10.4
 PyYAML>=6.0
+cryptography==44.0.0

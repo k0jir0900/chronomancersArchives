@@ -98,6 +98,9 @@
                     <li><a class="dropdown-item" href="/companies"><i class="bi bi-building me-2"></i>Companies</a></li>
                     <li><a class="dropdown-item" href="/backup"><i class="bi bi-database me-2"></i>Backup Management</a></li>
                     <li><a class="dropdown-item" href="/admin/mitre"><i class="bi bi-diagram-3 me-2"></i>MITRE Management</a></li>
+                    {% if current_user.role == 'superadmin' %}
+                    <li><a class="dropdown-item" href="/admin/ssl"><i class="bi bi-shield-lock-fill me-2"></i>SSL</a></li>
+                    {% endif %}
                     <li><a class="dropdown-item" href="/audit"><i class="bi bi-shield-lock me-2"></i>Audit</a></li>
                     {% endif %}
                     <li><hr class="dropdown-divider"></li>

@@ -21,6 +21,7 @@ from flask_limiter.util import get_remote_address
 import urllib.request
 import urllib.error
 import threading
+import signal
 
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -128,6 +129,10 @@ app.jinja_env.filters['humanize_td'] = _humanize_td
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# TLS cert location. Matches CERT_DIR in docker/entrypoint.sh (host-mounted folder
+# so an uploaded cert survives restarts and can be inspected/replaced).
+CERT_DIR = os.getenv('CERT_DIR', '/app/certs')
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -2035,6 +2040,20 @@ def admin_required(view):
         return view(**kwargs)
     return wrapped_view
 
+def superadmin_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+
+        user = _current_user()
+        if not user or user.get('role') != 'superadmin':
+            flash('Superadmin privileges required.', 'error')
+            return redirect(url_for('home'))
+
+        return view(**kwargs)
+    return wrapped_view
+
 @app.route('/users')
 @login_required
 @admin_required
@@ -2625,14 +2644,25 @@ if scheduler_available:
         app.logger.error("Error initializing scheduler: %s", e)
         scheduler_available = False
 
+# Backup scheduling and backup log rotation are enabled out of the box; a value
+# saved to backup.conf overrides the matching default.
+DEFAULT_SCHEDULE_CONFIG = {
+    'enabled': True,
+    'frequency': 'daily',
+    'time': '00:00',
+    'logrotate_auto': True,
+    'logrotate_days': 7,
+}
+
 def load_schedule_config():
+    config = dict(DEFAULT_SCHEDULE_CONFIG)
     if os.path.exists(SCHEDULER_CONFIG_FILE):
         try:
             with open(SCHEDULER_CONFIG_FILE, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, ValueError, OSError):
-            return {}
-    return {}
+                config.update(json.load(f))
+        except (json.JSONDecodeError, ValueError, TypeError, OSError):
+            pass
+    return config
 
 def save_schedule_config(config):
     with open(SCHEDULER_CONFIG_FILE, 'w') as f:
@@ -2759,12 +2789,11 @@ def schedule_backup():
     frequency = request.form.get('frequency')
     backup_time = request.form.get('time')
 
-    config = {
-        'enabled': enabled,
-        'frequency': frequency,
-        'time': backup_time
-    }
-    
+    config = load_schedule_config()
+    config['enabled'] = enabled
+    config['frequency'] = frequency
+    config['time'] = backup_time
+
     save_schedule_config(config)
     init_scheduler()
 
@@ -2862,6 +2891,150 @@ def audit():
     return render_template('audit.html', logs=logs, page=page, pages=pages, total=total,
                            f_action=f_action, f_username=f_username, f_ip=f_ip,
                            action_choices=action_choices)
+
+
+# --- SSL / TLS MANAGEMENT (superadmin) ---
+
+CERT_FILE = os.path.join(CERT_DIR, 'cert.pem')
+KEY_FILE = os.path.join(CERT_DIR, 'key.pem')
+# Presence marks the cert as web-managed; docker/entrypoint.sh then never
+# regenerates it (so an uploaded self-signed cert is not overwritten on restart).
+CERT_MANAGED_MARKER = os.path.join(CERT_DIR, '.managed')
+
+
+def _read_cert_info():
+    """Parsed details of the cert on disk, or None when absent/unreadable."""
+    if not os.path.exists(CERT_FILE):
+        return None
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID, ExtensionOID
+        with open(CERT_FILE, 'rb') as f:
+            cert = x509.load_pem_x509_certificate(f.read())
+    except Exception:
+        return None
+
+    def _cn(name):
+        attrs = name.get_attributes_for_oid(NameOID.COMMON_NAME)
+        return attrs[0].value if attrs else ''
+
+    sans = []
+    try:
+        ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        sans = ext.value.get_values_for_type(x509.DNSName)
+    except x509.ExtensionNotFound:
+        pass
+
+    return {
+        'cn': _cn(cert.subject),
+        'issuer': _cn(cert.issuer),
+        'sans': sans,
+        'not_before': cert.not_valid_before_utc.strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'not_after': cert.not_valid_after_utc.strftime('%Y-%m-%d %H:%M:%S UTC'),
+        'expired': cert.not_valid_after_utc < datetime.now(cert.not_valid_after_utc.tzinfo),
+        'self_signed': cert.issuer == cert.subject,
+        'managed': os.path.exists(CERT_MANAGED_MARKER),
+    }
+
+
+def _validate_cert_pair(cert_bytes, key_bytes):
+    """Return (cert, error). cert is the parsed x509 when the PEM pair is valid
+    and the private key matches the certificate; otherwise error explains why."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+    try:
+        cert = x509.load_pem_x509_certificate(cert_bytes)
+    except Exception:
+        return None, 'The certificate is not a valid PEM certificate.'
+    try:
+        key = load_pem_private_key(key_bytes, password=None)
+    except TypeError:
+        return None, 'The private key is encrypted; upload an unencrypted key.'
+    except Exception:
+        return None, 'The private key is not a valid PEM private key.'
+
+    pub_fmt = serialization.PublicFormat.SubjectPublicKeyInfo
+    pem_enc = serialization.Encoding.PEM
+    cert_pub = cert.public_key().public_bytes(pem_enc, pub_fmt)
+    key_pub = key.public_key().public_bytes(pem_enc, pub_fmt)
+    if cert_pub != key_pub:
+        return None, 'The private key does not match the certificate.'
+    return cert, None
+
+
+def _reload_tls():
+    """Ask the gunicorn master to reload so new workers pick up the cert on disk.
+    The worker's parent is the master; SIGHUP rebuilds the SSL context from the
+    same cert/key paths. No-op when not running under gunicorn (e.g. dev server)."""
+    if not request.environ.get('SERVER_SOFTWARE', '').startswith('gunicorn'):
+        return False
+    try:
+        os.kill(os.getppid(), signal.SIGHUP)
+        return True
+    except OSError:
+        return False
+
+
+@app.route('/admin/ssl')
+@login_required
+@superadmin_required
+def admin_ssl():
+    return render_template(
+        'ssl.html',
+        cert=_read_cert_info(),
+        cert_dir=CERT_DIR,
+        ssl_enabled=os.getenv('ENABLE_SSL', 'false').lower() == 'true',
+    )
+
+
+@app.route('/admin/ssl/upload', methods=['POST'])
+@login_required
+@superadmin_required
+def admin_ssl_upload():
+    cert_upload = request.files.get('cert_file')
+    key_upload = request.files.get('key_file')
+    if not cert_upload or not key_upload or not cert_upload.filename or not key_upload.filename:
+        flash('Both a certificate and a private key file are required.', 'error')
+        return redirect(url_for('admin_ssl'))
+
+    cert_bytes = cert_upload.read()
+    key_bytes = key_upload.read()
+
+    _cert, error = _validate_cert_pair(cert_bytes, key_bytes)
+    if error:
+        flash(error, 'error')
+        return redirect(url_for('admin_ssl'))
+
+    # Stage both files first, then rename into place, so a mid-write failure never
+    # leaves a mismatched cert/key pair that would break TLS startup.
+    try:
+        os.makedirs(CERT_DIR, exist_ok=True)
+        cert_tmp = CERT_FILE + '.tmp'
+        key_tmp = KEY_FILE + '.tmp'
+        with open(cert_tmp, 'wb') as f:
+            f.write(cert_bytes)
+        key_fd = os.open(key_tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(key_fd, 'wb') as f:
+            f.write(key_bytes)
+        os.replace(cert_tmp, CERT_FILE)
+        os.replace(key_tmp, KEY_FILE)
+        with open(CERT_MANAGED_MARKER, 'w') as f:
+            f.write('web-managed; entrypoint will not regenerate this cert\n')
+    except OSError as e:
+        flash(f'Could not save the certificate: {e}', 'error')
+        return redirect(url_for('admin_ssl'))
+
+    _log_api_audit(session.get('user_id'), None, 200, action='ssl_upload')
+
+    if os.getenv('ENABLE_SSL', 'false').lower() != 'true':
+        flash('Certificate saved. SSL is disabled (ENABLE_SSL=false); set it to true and restart to serve over HTTPS.', 'success')
+    elif _reload_tls():
+        flash('Certificate saved and TLS reload signalled. New connections will use the new certificate shortly.', 'success')
+    else:
+        flash('Certificate saved. Restart the container for it to take effect.', 'success')
+    return redirect(url_for('admin_ssl'))
 
 
 @app.route('/search')

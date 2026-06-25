@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}SSL Management – Chronomancers Archives{% endblock %}
+{% block page_title %}SSL / TLS Management{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Current Certificate</h6>
+                {% if ssl_enabled %}
+                <span class="badge bg-success">HTTPS enabled</span>
+                {% else %}
+                <span class="badge bg-secondary">HTTPS disabled</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if cert %}
+                <table class="table table-borderless table-sm mb-0" style="font-size:var(--fs-base);line-height:1.4;">
+                    <tbody>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1" style="width:35%;">Common Name</td>
+                            <td class="fw-medium py-1">{{ cert.cn or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Subject Alt Names</td>
+                            <td class="fw-medium py-1">{{ cert.sans | join(', ') if cert.sans else '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Issuer</td>
+                            <td class="fw-medium py-1">{{ cert.issuer or '—' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Type</td>
+                            <td class="fw-medium py-1">
+                                {% if cert.self_signed %}Self-signed{% else %}CA-signed{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Valid From</td>
+                            <td class="fw-medium py-1">{{ cert.not_before }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Valid Until</td>
+                            <td class="fw-medium py-1">
+                                {{ cert.not_after }}
+                                {% if cert.expired %}<span class="badge bg-danger ms-2">Expired</span>{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary ps-3 py-1">Managed</td>
+                            <td class="fw-medium py-1">
+                                {% if cert.managed %}
+                                <span class="badge bg-info text-dark">Web-managed (not regenerated)</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Entrypoint-managed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-secondary mb-0">No certificate found in <code>{{ cert_dir }}</code>.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-upload me-2"></i>Upload Certificate</h6>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('admin_ssl_upload') }}" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="cert_file">Certificate (PEM)</label>
+                        <input class="form-control" type="file" id="cert_file" name="cert_file" accept=".pem,.crt,.cer" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="key_file">Private Key (PEM, unencrypted)</label>
+                        <input class="form-control" type="file" id="key_file" name="key_file" accept=".pem,.key" required>
+                    </div>
+                    <div class="alert alert-secondary" style="font-size:var(--fs-sm);">
+                        <i class="bi bi-info-circle me-1"></i>
+                        The key must match the certificate. Once uploaded, the cert is marked web-managed and the
+                        container entrypoint will not overwrite it.
+                        {% if ssl_enabled %}
+                        A live TLS reload is signalled on upload; new connections use the new certificate shortly.
+                        {% else %}
+                        SSL is currently disabled (<code>ENABLE_SSL=false</code>); enable it and restart to serve over HTTPS.
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-shield-check me-1"></i>Upload & Apply
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
