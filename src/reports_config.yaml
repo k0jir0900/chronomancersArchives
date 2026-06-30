@@ -11,7 +11,7 @@ reports:
     title: Summary
     type: stats
     query: |
-      SELECT (SELECT COUNT(DISTINCT rule_name) FROM archives) AS unique_rules,
+      SELECT (SELECT COUNT(DISTINCT rule_name) FROM archives {where}) AS unique_rules,
              COUNT(*) AS total_records,
              SUM(CASE WHEN action_type = 'creation' THEN 1 ELSE 0 END) AS creations,
              SUM(CASE WHEN action_type = 'modification' THEN 1 ELSE 0 END) AS modifications,
@@ -19,8 +19,10 @@ reports:
              MIN(DATE(created_at)) AS from_date,
              MAX(DATE(created_at)) AS to_date,
              (SELECT rule_name FROM archives
+              {where}
               GROUP BY rule_name ORDER BY COUNT(*) DESC LIMIT 1) AS top_rule,
              (SELECT COUNT(*) FROM archives
+              {where}
               GROUP BY rule_name ORDER BY COUNT(*) DESC LIMIT 1) AS top_rule_count
       FROM archives
       {where}

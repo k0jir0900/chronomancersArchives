@@ -28,3 +28,6 @@ PROGRESS_REPORTS.md
 .claude/
 
 src/mitre.conf
+/memory
+src/_shot.py
+src/_shot2.py
