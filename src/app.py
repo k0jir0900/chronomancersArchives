@@ -1502,13 +1502,7 @@ def register():
     companies = visible_companies()
     active = session.get('active_company', 'all')
     company_locked = active != 'all' and any(str(c['id']) == active for c in companies)
-    default_company_id = None
-    if company_locked:
-        default_company_id = int(active)
-    else:
-        default_company_id = next((c['id'] for c in companies if c['name'] == 'Aconetwork'), None)
-        if default_company_id is None and companies:
-            default_company_id = companies[0]['id']
+    default_company_id = int(active) if company_locked else None
 
     conn = get_db_connection()
     rules = []
@@ -1754,7 +1748,7 @@ def api_rule_latest():
     cursor = conn.cursor(dictionary=True)
     cf, cfp = company_filter()
     cursor.execute(
-        f"SELECT company, siem, environment, severity, rule_status FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at DESC LIMIT 1",
+        f"SELECT company, company_id, siem, environment, severity, rule_status FROM archives WHERE rule_name = %s AND {cf} ORDER BY created_at DESC LIMIT 1",
         (rule_name,) + tuple(cfp)
     )
     row = cursor.fetchone()

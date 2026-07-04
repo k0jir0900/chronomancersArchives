@@ -72,8 +72,9 @@
                 <div class="ca-form-field">
                     <label class="ca-label">Company <span class="text-danger">*</span></label>
                     <select class="form-select ca-input" name="company_id" required>
+                        <option value="" selected hidden>Select an option</option>
                         {% for c in companies %}
-                        <option value="{{ c.id }}" {% if c.id == default_company_id %}selected{% endif %}>{{ c.name }}</option>
+                        <option value="{{ c.id }}">{{ c.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -446,6 +447,8 @@ async function loadRuleData(ruleName) {
         const resp = await fetch(`/api/rule/latest?rule_name=${encodeURIComponent(ruleName)}`);
         const data = await resp.json();
         if (data && Object.keys(data).length) {
+            if (data.company_id != null && document.querySelector('select[name="company_id"]'))
+                setSelectByName('company_id', String(data.company_id));
             if (data.siem)        setSelectByName('siem', data.siem);
             if (data.environment) {
                 setSelectByName('environment', data.environment);
