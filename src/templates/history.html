@@ -80,6 +80,7 @@
         <option value="" selected hidden>Status</option>
         <option value="active">Active</option>
         <option value="disabled">Disabled</option>
+        <option value="deleted">Deleted</option>
     </select>
     <select id="searchMitre" class="form-select ca-search-input" style="flex:1;min-width:0;">
         <option value="" selected hidden>MITRE Status</option>
@@ -207,7 +208,7 @@
 
 <!-- Hidden PDF Report -->
 {% set sev_pdf = {'critical':'#963838','high':'#a8651d','medium':'#8a6d00','low':'#2a5d8f','informative':'#5a6168'} %}
-{% set act_pdf = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
+{% set act_pdf = {'creation':'#2c6e2c','modification':'#8a6d00','state_change':'#2a5d8f','elimination':'#963838'} %}
 <div id="report-container" style="display:none;background:#fff;color:#000;padding:18px;font-family:'Inter','Segoe UI',Arial,sans-serif;">
     <div style="border-bottom:3px solid #3d4d80;padding-bottom:14px;margin-bottom:20px;text-align:center;">
         <h1 style="margin:0;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3d4d80;white-space:nowrap;overflow:hidden;">{{ summary.rule_name }}</h1>
@@ -281,13 +282,13 @@
                     <strong style="color:#3d4d80;white-space:nowrap;">{{ log.created_at.strftime('%Y-%m-%d') }}</strong>
                     <span style="white-space:nowrap;">| Modified by: <strong>{{ log.modified_by or 'System' }}</strong></span>
                     {% if log.ticket %}<span style="white-space:nowrap;">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
-                    <span style="white-space:nowrap;">| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
+                    <span style="white-space:nowrap;">| Reason: <strong>{{ log.tuning_driver|driver_label }}</strong></span>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
                     {% if log.severity %}
                     <span style="background:{{ sev_pdf.get(log.severity|lower, '#5a6168') }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ log.severity|title }}</span>
                     {% endif %}
-                    <span style="background:{{ act_pdf.get(log.action_type, '#5a6168') }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ log.action_type|title }}</span>
+                    <span style="background:{{ act_pdf.get(log.action_type, '#5a6168') }};color:#fff;padding:2px 6px;font-size:10px;border-radius:3px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ log.action_type|action_label }}</span>
                 </div>
             </div>
             <div style="padding:10px;display:flex;flex-direction:column;gap:10px;">
@@ -328,7 +329,7 @@
                 <tr>
                     <th class="ca-sum-key">Status</th>
                     <td class="ca-sum-val">
-                        <span class="ca-tag" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};">{{ summary.current_status }}</span>
+                        <span class="ca-tag" style="background:{{ '#238636' if summary.current_status|lower == 'active' else '#da3633' }};">{{ summary.current_status|title }}</span>
                     </td>
                     <th class="ca-sum-key">Severity</th>
                     <td class="ca-sum-val">
@@ -487,21 +488,22 @@
 <h5 class="mb-3">Historical Detail</h5>
 <div class="ca-timeline-container">
     {% for log in timeline %}
-    <div class="ca-timeline-box" style="border-left:5px solid {% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};">
+    {% set act_colors = {'creation':'#238636','modification':'#d29922','state_change':'#388bfd','elimination':'#da3633'} %}
+    <div class="ca-timeline-box" style="border-left:5px solid {{ act_colors.get(log.action_type, '#8b949e') }};">
         <div class="ca-timeline-header">
             <span class="fw-medium"><i class="bi bi-calendar3 me-1"></i>{{ log.created_at.strftime('%Y-%m-%d') }}</span>
             <span class="text-secondary small">
                 <i class="bi bi-person-fill me-1"></i>Modified by: <strong style="color:#58a6ff;">{{ log.modified_by or 'System' }}</strong>
                 {% if log.ticket %}<span class="ms-2">| Ticket: <strong>{{ log.ticket }}</strong></span>{% endif %}
-                <span class="ms-2">| Reason: <strong>{{ (log.tuning_driver or '').replace('_',' ').title() }}</strong></span>
+                <span class="ms-2">| Reason: <strong>{{ log.tuning_driver|driver_label }}</strong></span>
                 {% if log.severity %}
                 {% set lsev = log.severity|lower %}
                 {% set lsev_color = {'critical':'#da3633','high':'#f0883e','medium':'#d29922','low':'#3081f7','informative':'#6e7681'}.get(lsev, '#6e7681') %}
                 <span class="ms-2">| Severity: <span class="ca-tag" style="background:{{ lsev_color }};">{{ log.severity|title }}</span></span>
                 {% endif %}
             </span>
-            <span class="ca-tag ms-auto" style="background:{% if log.action_type=='creation' %}#238636{% elif log.action_type=='modification' %}#d29922{% else %}#da3633{% endif %};">
-                {% if log.action_type == 'creation' %}Creation{% elif log.action_type == 'modification' %}Modification{% elif log.action_type == 'elimination' %}Elimination{% else %}{{ log.action_type }}{% endif %}
+            <span class="ca-tag ms-auto" style="background:{{ act_colors.get(log.action_type, '#8b949e') }};">
+                {{ log.action_type|action_label }}
             </span>
         </div>
         <div class="ca-timeline-content">

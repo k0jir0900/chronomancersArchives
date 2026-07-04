@@ -15,6 +15,7 @@ reports:
              COUNT(*) AS total_records,
              SUM(CASE WHEN action_type = 'creation' THEN 1 ELSE 0 END) AS creations,
              SUM(CASE WHEN action_type = 'modification' THEN 1 ELSE 0 END) AS modifications,
+             SUM(CASE WHEN action_type = 'state_change' THEN 1 ELSE 0 END) AS state_changes,
              SUM(CASE WHEN action_type = 'elimination' THEN 1 ELSE 0 END) AS eliminations,
              MIN(DATE(created_at)) AS from_date,
              MAX(DATE(created_at)) AS to_date,

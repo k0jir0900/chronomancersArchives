@@ -47,7 +47,7 @@
                     <select class="form-select" name="v1">
                         {% for v in versions %}
                         <option value="{{ v.id }}" {% if v.id|string == v1_id|string or (loop.index == 2 and not v1_id) %}selected{% endif %}>
-                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | title }} · {{ v.modified_by }}
+                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | action_label }} · {{ v.modified_by }}
                         </option>
                         {% endfor %}
                     </select>
@@ -57,7 +57,7 @@
                     <select class="form-select" name="v2">
                         {% for v in versions %}
                         <option value="{{ v.id }}" {% if v.id|string == v2_id|string or (loop.first and not v2_id) %}selected{% endif %}>
-                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | title }} · {{ v.modified_by }}
+                            v{{ v.version }} · {{ v.created_at.strftime('%Y-%m-%d') }} · {{ v.action_type | action_label }} · {{ v.modified_by }}
                         </option>
                         {% endfor %}
                     </select>

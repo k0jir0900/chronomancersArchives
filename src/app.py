@@ -126,6 +126,72 @@ def _humanize_td(val):
     return ' '.join(_TD_EXPAND.get(p.lower(), p.capitalize()) for p in str(val).split('_'))
 app.jinja_env.filters['humanize_td'] = _humanize_td
 
+# --- CDU action types, tuning drivers and derived status (single source of truth) ---
+ACTION_TYPES = ['creation', 'modification', 'state_change', 'elimination']
+ACTION_TYPE_LABELS = {
+    'creation': 'Creation',
+    'modification': 'Modification',
+    'state_change': 'State Change',
+    'elimination': 'Elimination',
+}
+
+# Ordered tuning drivers per action type: (key, label). Labels are the single
+# source used by the form, history, and reports.
+TUNING_DRIVERS = {
+    'creation': [
+        ('new_use_case', 'New Use Case'),
+    ],
+    'modification': [
+        ('hardening', 'Hardening'),
+        ('fp_correction', 'False Positive Correction'),
+        ('maintenance', 'Maintenance'),
+    ],
+    'state_change': [
+        ('deactivate_log_source_retired', 'Deactivate - Log source retired'),
+        ('deactivate_temporary_suspension', 'Deactivate - Temporary suspension'),
+        ('deactivate_replaced_by_rule', 'Deactivate - Replaced by another rule'),
+        ('activate_issue_resolved', 'Activate - Issue resolved'),
+        ('activate_log_source_restored', 'Activate - Log source restored'),
+    ],
+    'elimination': [
+        ('permanent_retirement', 'Permanent retirement'),
+        ('consolidation', 'Consolidation'),
+        ('no_longer_needed', 'No longer needed'),
+    ],
+}
+TUNING_DRIVER_LABELS = {k: v for lst in TUNING_DRIVERS.values() for k, v in lst}
+DRIVER_TO_ACTION = {k: at for at, lst in TUNING_DRIVERS.items() for k, _ in lst}
+
+
+def derive_rule_status(action_type, tuning_driver):
+    if action_type in ('creation', 'modification'):
+        return 'active'
+    if action_type == 'elimination':
+        return 'deleted'
+    if action_type == 'state_change':
+        if not tuning_driver:
+            return 'pending'
+        if tuning_driver.startswith('deactivate'):
+            return 'disabled'
+        if tuning_driver.startswith('activate'):
+            return 'active'
+        return 'pending'
+    return 'active'
+
+
+def _action_label(val):
+    if not val:
+        return ''
+    return ACTION_TYPE_LABELS.get(val, str(val).replace('_', ' ').title())
+app.jinja_env.filters['action_label'] = _action_label
+
+
+def _driver_label(val):
+    if not val:
+        return ''
+    return TUNING_DRIVER_LABELS.get(val, str(val).replace('_', ' ').title())
+app.jinja_env.filters['driver_label'] = _driver_label
+
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -293,7 +359,7 @@ def build_report_data(config, company, date_from, date_to):
                         existing = {r.get('action_type'): r.get('count', 0) for r in result['rows']}
                         result['rows'] = [
                             {'action_type': a, 'count': existing.get(a, 0)}
-                            for a in ('creation', 'modification', 'elimination')
+                            for a in ('creation', 'modification', 'state_change', 'elimination')
                         ]
                         result['rows'].sort(key=lambda r: r['count'], reverse=True)
                     elif result['id'] == 'tuning_driver':
@@ -351,7 +417,7 @@ def build_report_data(config, company, date_from, date_to):
                 tl = {}
                 for row in cursor.fetchall():
                     d = str(row['date'])
-                    tl.setdefault(d, {'creation': 0, 'modification': 0, 'elimination': 0})
+                    tl.setdefault(d, {'creation': 0, 'modification': 0, 'state_change': 0, 'elimination': 0})
                     tl[d][row['action_type']] = row['count']
                 if date_from or date_to or tl:
                     from datetime import date as _date, timedelta
@@ -361,7 +427,7 @@ def build_report_data(config, company, date_from, date_to):
                     if start and end:
                         cur = start
                         while cur <= end:
-                            tl.setdefault(cur.isoformat(), {'creation': 0, 'modification': 0, 'elimination': 0})
+                            tl.setdefault(cur.isoformat(), {'creation': 0, 'modification': 0, 'state_change': 0, 'elimination': 0})
                             cur += timedelta(days=1)
                 result['rows'] = [{'date': d, **v} for d, v in sorted(tl.items())]
 
@@ -636,6 +702,14 @@ def init_db():
             pass
         try:
             cursor.execute("ALTER TABLE archives ADD INDEX idx_company_id (company_id)")
+        except mysql.connector.Error:
+            pass
+        # Extend action_type with 'state_change' (non-destructive, keeps existing rows).
+        try:
+            cursor.execute(
+                "ALTER TABLE archives MODIFY action_type "
+                "ENUM('creation', 'modification', 'state_change', 'elimination') NOT NULL"
+            )
         except mysql.connector.Error:
             pass
         # Default company, plus backfill from existing free-text company values.
@@ -933,13 +1007,8 @@ def home():
     cursor.execute(f"SELECT tuning_driver, COUNT(*) as count FROM archives WHERE tuning_driver IS NOT NULL AND tuning_driver != '' AND created_at BETWEEN %s AND %s AND {cf} GROUP BY tuning_driver", (start_date + ' 00:00:00', end_date + ' 23:59:59') + tuple(cfp))
     tuning_drivers = cursor.fetchall()
     
-    driver_map = {
-        'fp_correction': 'False Positive',
-        'hardening': 'Hardening',
-        'new_use_case': 'New Use Case',
-        'maintenance': 'Maintenance'
-    }
-    
+    driver_map = TUNING_DRIVER_LABELS
+
     tuning_driver_data = {
         'labels': [driver_map.get(row['tuning_driver'], row['tuning_driver'].replace('_', ' ').title()) for row in tuning_drivers],
         'counts': [row['count'] for row in tuning_drivers]
@@ -1399,8 +1468,7 @@ def register():
         siem = request.form.get('siem') or None
         environment = request.form.get('environment')
         action_type = request.form.get('action_type')
-        rule_status = request.form.get('rule_status', 'active')
-        tuning_driver = request.form.get('tuning_driver', 'maintenance')
+        tuning_driver = request.form.get('tuning_driver') or None
         severity = request.form.get('severity') or None
         if severity and severity not in ('critical', 'high', 'medium', 'low', 'informative'):
             severity = None
@@ -1411,6 +1479,14 @@ def register():
         if not rule_name or not environment or not action_type or not severity or not description or not rule_content:
             flash('All mandatory fields must be filled.', 'error')
             return redirect(url_for('register'))
+
+        if action_type not in ACTION_TYPES:
+            flash('Invalid action type.', 'error')
+            return redirect(url_for('register'))
+        if not tuning_driver or DRIVER_TO_ACTION.get(tuning_driver) != action_type:
+            flash('Invalid tuning driver for the selected action type.', 'error')
+            return redirect(url_for('register'))
+        rule_status = derive_rule_status(action_type, tuning_driver)
 
         conn = get_db_connection()
         if conn:
@@ -1520,9 +1596,11 @@ def register():
         users_list = cursor.fetchall()
         cursor.close()
         conn.close()
+    action_types = [(k, ACTION_TYPE_LABELS[k]) for k in ACTION_TYPES]
     return render_template('register.html', rules=rules, users=users_list,
                            companies=companies, default_company_id=default_company_id,
-                           company_locked=company_locked)
+                           company_locked=company_locked,
+                           action_types=action_types, tuning_drivers=TUNING_DRIVERS)
 
 
 @app.route('/severity-calc')

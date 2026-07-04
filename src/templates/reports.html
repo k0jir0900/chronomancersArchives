@@ -62,6 +62,7 @@
 .sev-not-set     { background:#30363d;color:#8b949e; }
 .act-creation     { background:rgba(35,134,54,.2);color:#3fb950; }
 .act-modification { background:rgba(210,153,34,.15);color:#d29922; }
+.act-state_change { background:rgba(56,139,253,.15);color:#58a6ff; }
 .act-elimination  { background:rgba(218,54,51,.15);color:#f85149; }
 .rp-grid {
     display: flex;
@@ -166,9 +167,9 @@
     {# Shared macros #}
     {% macro cell(col, val) %}
         {%- if col == 'action_type' -%}
-            {{ (val or '—') | title }}
+            {{ (val | action_label) or '—' }}
         {%- elif col == 'actions' -%}
-            <span class="rp-badge act-{{ (val or '') | lower }}">{{ (val or '—') | title }}</span>
+            <span class="rp-badge act-{{ (val or '') | lower }}">{{ (val | action_label) or '—' }}</span>
         {%- elif col == 'rule_status' -%}
             <span class="rp-badge" style="background:{% if val == 'active' %}rgba(35,134,54,.2);color:#3fb950;border:1px solid rgba(35,134,54,.4){% else %}rgba(218,54,51,.15);color:#f85149;border:1px solid rgba(218,54,51,.4){% endif %};">{{ (val or '—') | title }}</span>
         {%- elif col == 'severity' -%}
@@ -176,7 +177,7 @@
         {%- elif col == 'environment' -%}
             <span class="badge bg-secondary">{{ (val or '') | upper }}</span>
         {%- elif col == 'tuning_driver' -%}
-            {{ (val or '—') | humanize_td }}
+            {{ (val | driver_label) or '—' }}
         {%- else -%}{{ val }}{%- endif -%}
     {% endmacro %}
 
@@ -194,8 +195,8 @@
             <tr>
                 {% for col, val in row.items() %}
                 <td{% if loop.last %} class="text-end fw-semibold"{% endif %}>
-                    {%- if col == 'action_type' -%}{{ (val or '—') | title }}
-                    {%- elif col == 'tuning_driver' -%}{{ (val or '—') | humanize_td }}
+                    {%- if col == 'action_type' -%}{{ (val | action_label) or '—' }}
+                    {%- elif col == 'tuning_driver' -%}{{ (val | driver_label) or '—' }}
                     {%- else -%}{{ cell(col, val) }}{%- endif -%}
                 </td>
                 {% endfor %}
@@ -260,6 +261,14 @@
                 <div class="stat-card">
                     <div class="ca-stat-icon" style="background:rgba(210,153,34,.15);color:#d29922;"><i class="bi bi-pencil"></i></div>
                     <div><p class="stat-label">Modifications</p><h3 class="stat-value">{{ row.modifications or 0 }}</h3></div>
+                </div>
+            </div>
+            {% endif %}
+            {% if row.state_changes is defined %}
+            <div class="col-6 col-sm-4 col-xl">
+                <div class="stat-card">
+                    <div class="ca-stat-icon" style="background:rgba(56,139,253,.15);color:#58a6ff;"><i class="bi bi-toggle-on"></i></div>
+                    <div><p class="stat-label">State Changes</p><h3 class="stat-value">{{ row.state_changes or 0 }}</h3></div>
                 </div>
             </div>
             {% endif %}
@@ -373,8 +382,8 @@
 
 {# ─────────── HIDDEN SERVER-RENDERED PDF CONTAINER ─────────── #}
 {% set sev_map = {'critical':'#963838','high':'#a8651d','medium':'#8a6d00','low':'#2a5d8f','informative':'#5a6168'} %}
-{% set act_map = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
-{% set act_text = {'creation':'#2c6e2c','modification':'#8a6d00','elimination':'#963838'} %}
+{% set act_map = {'creation':'#2c6e2c','modification':'#8a6d00','state_change':'#2a5d8f','elimination':'#963838'} %}
+{% set act_text = {'creation':'#2c6e2c','modification':'#8a6d00','state_change':'#2a5d8f','elimination':'#963838'} %}
 
 {% macro pdf_badge(text, bg, fg='#fff') -%}
 <span style="background:{{ bg }};color:{{ fg }};padding:1px 7px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">{{ text }}</span>
@@ -382,10 +391,10 @@
 
 {% macro pdf_cell(col, val) -%}
 {%- if col == 'action_type' -%}
-    {{ (val or '—') | title }}
+    {{ (val | action_label) or '—' }}
 {%- elif col == 'actions' -%}
     {%- for act in (val or '') | string | split(',') -%}
-        {%- if act.strip() -%}{{ pdf_badge(act.strip()|title, act_map.get(act.strip()|lower, '#6e7681')) }} {% endif -%}
+        {%- if act.strip() -%}{{ pdf_badge(act.strip()|action_label, act_map.get(act.strip()|lower, '#6e7681')) }} {% endif -%}
     {%- endfor -%}
 {%- elif col == 'rule_status' -%}
     {{ pdf_badge(val|title, '#238636' if (val or '')|lower == 'active' else '#da3633') }}
@@ -394,7 +403,7 @@
 {%- elif col == 'environment' -%}
     {{ pdf_badge((val or '')|upper, '#444') }}
 {%- elif col == 'tuning_driver' -%}
-    {{ (val or '—') | humanize_td }}
+    {{ (val | driver_label) or '—' }}
 {%- else -%}{{ val if val is not none else '—' }}{%- endif -%}
 {% endmacro %}
 
@@ -518,16 +527,18 @@
                 <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;">Date</th>
                 <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:5rem;">Creations</th>
                 <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:6rem;">Modifications</th>
+                <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:6rem;">State Changes</th>
                 <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:6rem;">Eliminations</th>
                 <th style="text-align:right;padding:5px 8px;border-bottom:1px solid #aaa;font-size:10px;text-transform:uppercase;color:#444;width:4rem;">Total</th>
             </tr></thead>
             <tbody>
                 {% for row in sec.rows %}
-                {% set tot = (row.creation|int) + (row.modification|int) + (row.elimination|int) %}
+                {% set tot = (row.creation|int) + (row.modification|int) + (row.state_change|int) + (row.elimination|int) %}
                 <tr style="page-break-inside:avoid;">
                     <td style="padding:4px 8px;border-bottom:1px solid #eee;">{{ row.date }}</td>
                     <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.creation %}#bbb{% else %}#2c6e2c{% endif %};">{{ row.creation or 0 }}</td>
                     <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.modification %}#bbb{% else %}#8a6d00{% endif %};">{{ row.modification or 0 }}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.state_change %}#bbb{% else %}#2a5d8f{% endif %};">{{ row.state_change or 0 }}</td>
                     <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:{% if not row.elimination %}#bbb{% else %}#963838{% endif %};">{{ row.elimination or 0 }}</td>
                     <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;{% if not tot %}color:#bbb;{% endif %}">{{ tot }}</td>
                 </tr>
@@ -616,6 +627,7 @@ REPORT_SECTIONS.forEach(sec => {
                 datasets: [
                     { label:'Creation',     data: sec.rows.map(r => r.creation),     backgroundColor:'rgba(35,134,54,.65)',  borderRadius:2 },
                     { label:'Modification', data: sec.rows.map(r => r.modification), backgroundColor:'rgba(210,153,34,.65)', borderRadius:2 },
+                    { label:'State Change', data: sec.rows.map(r => r.state_change), backgroundColor:'rgba(56,139,253,.65)', borderRadius:2 },
                     { label:'Elimination',  data: sec.rows.map(r => r.elimination),  backgroundColor:'rgba(218,54,51,.65)',  borderRadius:2 }
                 ]
             },

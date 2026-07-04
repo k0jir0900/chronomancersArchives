@@ -92,22 +92,18 @@
 
                 <div class="ca-form-field">
                     <label class="ca-label">Action Type <span class="text-danger">*</span></label>
-                    <select class="form-select ca-input" name="action_type" required>
+                    <select class="form-select ca-input" name="action_type" id="actionType" required>
                         <option value="" selected hidden>Select an option</option>
-                        <option value="creation">Creation</option>
-                        <option value="modification">Modification</option>
-                        <option value="elimination">Elimination</option>
+                        {% for key, label in action_types %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
                 <div class="ca-form-field">
                     <label class="ca-label">Tuning Driver <span class="text-danger">*</span></label>
-                    <select class="form-select ca-input" name="tuning_driver" required>
-                        <option value="" selected hidden>Select an option</option>
-                        <option value="new_use_case">New Use Case</option>
-                        <option value="hardening">Hardening</option>
-                        <option value="fp_correction">False Positive Correction</option>
-                        <option value="maintenance">Maintenance</option>
+                    <select class="form-select ca-input" name="tuning_driver" id="tuningDriver" required disabled>
+                        <option value="" selected hidden>Select action type first</option>
                     </select>
                 </div>
 
@@ -124,11 +120,10 @@
                 </div>
 
                 <div class="ca-form-field">
-                    <label class="ca-label">CDU Status <span class="text-danger">*</span></label>
-                    <select class="form-select ca-input" name="rule_status" required>
-                        <option value="active">Active</option>
-                        <option value="disabled">Disabled</option>
-                    </select>
+                    <label class="ca-label">CDU Status</label>
+                    <div id="statusDisplay" class="ca-status-calc" data-status="">
+                        <span id="statusBadge" class="ca-status-pill">Pending</span>
+                    </div>
                 </div>
             </div>
 
@@ -292,6 +287,27 @@
     margin: 0;
     cursor: pointer;
 }
+.ca-status-calc {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-height: calc(1.5em + .75rem + 2px);
+}
+.ca-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: .3rem .85rem;
+    border-radius: 999px;
+    font-size:var(--fs-sm);
+    font-weight: 600;
+    letter-spacing: .3px;
+    color: #fff;
+    background: #6e7681;
+}
+.ca-status-pill[data-status="active"]   { background: #238636; }
+.ca-status-pill[data-status="disabled"] { background: #b91c1c; }
+.ca-status-pill[data-status="deleted"]  { background: #7f1d1d; }
+.ca-status-pill[data-status="pending"]  { background: #9a6700; }
 .ca-form-footer {
     padding-top: 1.5rem;
     border-top: 1px solid var(--border);
@@ -353,6 +369,68 @@
 </style>
 
 <script>
+(() => {
+    const TUNING_DRIVERS = {{ tuning_drivers|tojson }};
+    const actionSel = document.getElementById('actionType');
+    const driverSel = document.getElementById('tuningDriver');
+    const badge = document.getElementById('statusBadge');
+
+    const STATUS_LABELS = { active: 'Active', disabled: 'Disabled', deleted: 'Deleted', pending: 'Pending' };
+
+    function deriveStatus(action, driver) {
+        if (action === 'creation' || action === 'modification') return 'active';
+        if (action === 'elimination') return 'deleted';
+        if (action === 'state_change') {
+            if (!driver) return 'pending';
+            if (driver.indexOf('deactivate') === 0) return 'disabled';
+            if (driver.indexOf('activate') === 0) return 'active';
+            return 'pending';
+        }
+        return 'pending';
+    }
+
+    function updateStatus() {
+        const st = deriveStatus(actionSel.value, driverSel.value);
+        badge.dataset.status = st;
+        badge.textContent = STATUS_LABELS[st] || 'Pending';
+    }
+
+    // Show an existing CDU's current status when one is selected (before a new
+    // action is chosen, which then re-derives it).
+    window.showCduStatus = function (status) {
+        const st = (status || '').toLowerCase();
+        badge.dataset.status = st;
+        badge.textContent = STATUS_LABELS[st] || (st ? st.charAt(0).toUpperCase() + st.slice(1) : 'Pending');
+    };
+
+    function populateDrivers(action) {
+        const opts = TUNING_DRIVERS[action] || [];
+        driverSel.innerHTML = '';
+        if (!action || !opts.length) {
+            driverSel.innerHTML = '<option value="" selected hidden>Select action type first</option>';
+            driverSel.disabled = true;
+            updateStatus();
+            return;
+        }
+        const ph = document.createElement('option');
+        ph.value = ''; ph.hidden = true; ph.textContent = 'Select an option';
+        driverSel.appendChild(ph);
+        opts.forEach(([key, label]) => {
+            const o = document.createElement('option');
+            o.value = key; o.textContent = label;
+            driverSel.appendChild(o);
+        });
+        driverSel.disabled = false;
+        // Creation has a single driver: auto-select it.
+        driverSel.value = opts.length === 1 ? opts[0][0] : '';
+        updateStatus();
+    }
+
+    actionSel.addEventListener('change', () => populateDrivers(actionSel.value));
+    driverSel.addEventListener('change', updateStatus);
+    populateDrivers(actionSel.value);
+})();
+
 (() => {
     const wrap = document.getElementById('ruleNameWrap');
     const display = document.getElementById('ruleNameDisplay');
@@ -455,7 +533,7 @@ async function loadRuleData(ruleName) {
                 if (window.reloadMitreTechniques) await window.reloadMitreTechniques(data.environment);
             }
             if (data.severity)    setSelectByName('severity', data.severity);
-            if (data.rule_status) setSelectByName('rule_status', data.rule_status);
+            if (data.rule_status && window.showCduStatus) window.showCduStatus(data.rule_status);
         }
     } catch (e) {}
     try {
